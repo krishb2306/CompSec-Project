@@ -5,6 +5,7 @@ import uuid
 from flask import Flask, request, redirect, url_for, session, send_from_directory
 
 app = Flask(__name__)
+app.secret_key = "dev-secret-key"  # basic app only; replace later
 
 DATA_DIR = 'data'
 USERS_FILE = os.path.join(DATA_DIR, 'users.json')
