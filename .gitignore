@@ -1,0 +1,62 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Flask
+instance/
+.webassets-cache
+
+# Build / distribution
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Logs
+*.log
+logs/
+
+# Testing / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache/
+pytest_cache/
+
+# Type checking
+.mypy_cache/
+.pyre/
+.pytype/
+
+# Jupyter
+.ipynb_checkpoints
+
+# Database files
+*.sqlite3
+*.db
+
+# IDEs
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
