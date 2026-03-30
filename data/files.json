@@ -1,17 +1,14 @@
 [
     {
-        "owner": "test2",
-        "original_name": "document.txt",
-        "stored_name": "63a3c02d-8604-40a6-8f93-675b6e990df4_document.txt"
-    },
-    {
-        "owner": "test2",
-        "original_name": "spreadsheet.csv",
-        "stored_name": "16d192e2-5622-45ad-8be4-03e9ef4cfe1b_spreadsheet.csv"
-    },
-    {
+        "id": "7990216b-2777-458c-8b74-d3b9cd6e6eb9",
         "owner": "test1",
         "original_name": "document.txt",
-        "stored_name": "f346517f-d9fb-44ab-b1b1-b90a8ed15fcb_document.txt"
+        "stored_name": "7990216b-2777-458c-8b74-d3b9cd6e6eb9_document.txt"
+    },
+    {
+        "id": "4708f75a-ee6a-4f59-af52-1b33df88a6b9",
+        "owner": "test1",
+        "original_name": "spreadsheet.csv",
+        "stored_name": "4708f75a-ee6a-4f59-af52-1b33df88a6b9_spreadsheet.csv"
     }
 ]

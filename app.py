@@ -5,11 +5,12 @@ import uuid
 from flask import Flask, request, redirect, url_for, session, send_from_directory
 
 app = Flask(__name__)
-app.secret_key = "dev-secret-key"  # basic app only; replace later
+app.secret_key = 'dev-secret-key'  # basic app only; replace later
 
 DATA_DIR = 'data'
 USERS_FILE = os.path.join(DATA_DIR, 'users.json')
 FILES_FILE = os.path.join(DATA_DIR, 'files.json')
+SHARES_FILE = os.path.join(DATA_DIR, 'shares.json')
 UPLOAD_FOLDER = 'uploads'
 
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -38,14 +39,18 @@ def load_files():
 def save_files(files):
     save_json(FILES_FILE, files)
 
+def load_shares():
+    return load_json(SHARES_FILE, [])
 
-'''
-TODO:
-[ ] Formatting and styling
-'''
+def save_shares(shares):
+    save_json(SHARES_FILE, shares)
+
+
 @app.route('/')
 def home():
     username = session.get('username')
+    files = load_files()
+    shares = load_shares()
 
     if not username:
         return '''
@@ -67,20 +72,40 @@ def home():
         </form>
         '''
 
-    files = load_files()
-    user_files = [f for f in files if f['owner'] == username]
+    owned_files = [f for f in files if f['owner'] == username]
 
-    file_list_html = ''
-    if user_files:
-        for f in user_files:
-            file_list_html += f'''
+    shared_file_ids = [s['file_id'] for s in shares if s['shared_with'] == username]
+    shared_files = [f for f in files if f['id'] in shared_file_ids]
+
+    owned_html = ''
+    if owned_files:
+        for f in owned_files:
+            owned_html += f'''
             <li>
-                {f['original_name']}
+                <b>{f['original_name']}</b>
+                - <a href='/download/{f['stored_name']}'>Download</a>
+
+                <form method='POST' action='/share/{f['id']}' style='margin-top:8px; margin-bottom:12px;'>
+                    <input name='shared_with' placeholder='Username to share with' required>
+                    <button type='submit'>Share</button>
+                </form>
+            </li>
+            '''
+    else:
+        owned_html = '<li>No files uploaded yet.</li>'
+
+    shared_html = ''
+    if shared_files:
+        for f in shared_files:
+            shared_html += f'''
+            <li>
+                <b>{f['original_name']}</b>
+                (shared by {f['owner']})
                 - <a href='/download/{f['stored_name']}'>Download</a>
             </li>
             '''
     else:
-        file_list_html = '<li>No files uploaded yet.</li>'
+        shared_html = '<li>No files have been shared with you.</li>'
 
     return f'''
     <h1>Home</h1>
@@ -95,7 +120,12 @@ def home():
 
     <h2>Your Files</h2>
     <ul>
-        {file_list_html}
+        {owned_html}
+    </ul>
+
+    <h2>Files Shared With You</h2>
+    <ul>
+        {shared_html}
     </ul>
     '''
 
@@ -180,12 +210,14 @@ def upload():
     if file.filename == '':
         return 'No file selected. <a href='/'>Go back</a>'
 
-    unique_name = f'{uuid.uuid4()}_{file.filename}'
+    file_id = str(uuid.uuid4())
+    unique_name = f'{file_id}_{file.filename}'
     file_path = os.path.join(UPLOAD_FOLDER, unique_name)
     file.save(file_path)
 
     files = load_files()
     files.append({
+        'id': file_id,
         'owner': session['username'],
         'original_name': file.filename,
         'stored_name': unique_name
@@ -195,24 +227,87 @@ def upload():
     return redirect(url_for('home'))
 
 
+@app.route("/share/<file_id>", methods=["POST"])
+def share_file(file_id):
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    current_user = session["username"]
+    shared_with = request.form.get("shared_with", "").strip()
+
+    if not shared_with:
+        return "Must provide a username to share with. <a href='/'>Go back</a>"
+
+    users = load_users()
+    files = load_files()
+    shares = load_shares()
+
+    user_exists = any(u["username"] == shared_with for u in users)
+    if not user_exists:
+        return "That user does not exist. <a href='/'>Go back</a>"
+
+    if shared_with == current_user:
+        return "You already own this file. <a href='/'>Go back</a>"
+
+    target_file = None
+    for f in files:
+        if f.get("id") == file_id:
+            target_file = f
+            break
+
+    if not target_file:
+        return "File not found. <a href='/'>Go back</a>"
+
+    if target_file.get("owner") != current_user:
+        return "You can only share your own files. <a href='/'>Go back</a>"
+
+    for s in shares:
+        if s.get("file_id") == file_id and s.get("shared_with") == shared_with:
+            return redirect(url_for("home"))
+
+    shares.append({
+        "file_id": file_id,
+        "owner": current_user,
+        "shared_with": shared_with
+    })
+    save_shares(shares)
+
+    return redirect(url_for("home"))
+
+
 @app.route('/download/<stored_name>')
 def download(stored_name):
     if 'username' not in session:
         return redirect(url_for('home'))
 
     files = load_files()
+    shares = load_shares()
     current_user = session['username']
 
+    target_file = None
     for f in files:
-        if f['stored_name'] == stored_name and f['owner'] == current_user:
-            return send_from_directory(
-                UPLOAD_FOLDER,
-                stored_name,
-                as_attachment=True,
-                download_name=f['original_name']
-            )
+        if f['stored_name'] == stored_name:
+            target_file = f
+            break
 
-    return 'File not found or access denied. <a href='/'>Go back</a>'
+    if not target_file:
+        return 'File not found. <a href='/'>Go back</a>'
+
+    is_owner = target_file['owner'] == current_user
+    is_shared = any(
+        s['file_id'] == target_file['id'] and s['shared_with'] == current_user
+        for s in shares
+    )
+
+    if not is_owner and not is_shared:
+        return 'File not found or access denied. <a href='/'>Go back</a>'
+
+    return send_from_directory(
+        UPLOAD_FOLDER,
+        stored_name,
+        as_attachment=True,
+        download_name=target_file['original_name']
+    )
 
 
 if __name__ == '__main__':
