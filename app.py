@@ -39,6 +39,10 @@ def save_files(files):
     save_json(FILES_FILE, files)
 
 
+'''
+TODO:
+[ ] Formatting and styling
+'''
 @app.route('/')
 def home():
     username = session.get('username')
@@ -96,6 +100,19 @@ def home():
     '''
 
 
+'''
+TODO:
+[ ] Username: 3-20 characters, alphanumeric + underscore
+[ ] Email: Valid email format
+[ ] Password: Minimum 12 characters, complexity requirements:
+    - At least 1 uppercase letter
+    - At least 1 lowercase letter
+    - At least 1 number
+    - At least 1 special character
+[ ] Password confirmation must match
+[ ] Check for duplicate username/email
+[ ] Salt + Hash
+'''
 @app.route('/register', methods=['POST'])
 def register():
     username = request.form.get('username', '').strip()
@@ -122,6 +139,13 @@ def register():
     return redirect(url_for('home'))
 
 
+'''
+TODO:
+[ ] Implement account lockout after 5 failed attempts (15 minutes)
+[ ] Rate limiting: Max 10 loging attempts per IP per minute
+[ ] Session creation on successful login
+[ ] Log all authentication attempts
+'''
 @app.route('/login', methods=['POST'])
 def login():
     username = request.form.get('username', '').strip()
