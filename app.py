@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+import bcrypt
 
 from flask import Flask, request, redirect, url_for, session, send_from_directory
 
@@ -157,9 +158,11 @@ def register():
         if user['username'] == username:
             return "Username already exists. <a href='/'>Go back</a>"
 
+
+    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
     new_user = {
         'username': username,
-        'password': password
+        'password': hashed.decode('utf-8')
     }
 
     users.append(new_user)
@@ -184,9 +187,10 @@ def login():
     users = load_users()
 
     for user in users:
-        if user['username'] == username and user['password'] == password:
-            session['username'] = username
-            return redirect(url_for('home'))
+        if user['username'] == username:
+            if bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+                session['username'] = username
+                return redirect(url_for('home'))
 
     return 'Invalid username or password. <a href='/'>Go back</a>'
 
