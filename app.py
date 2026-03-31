@@ -155,7 +155,7 @@ def register():
 
     for user in users:
         if user['username'] == username:
-            return 'Username already exists. <a href='/'>Go back</a>'
+            return "Username already exists. <a href='/'>Go back</a>"
 
     new_user = {
         'username': username,
