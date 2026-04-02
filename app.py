@@ -2,6 +2,7 @@ import json
 import os
 import uuid
 import bcrypt
+import time
 from functools import wraps
 
 from flask import Flask, request, redirect, url_for, session, send_from_directory, abort
@@ -86,6 +87,43 @@ def require_role(min_role):
         return decorated_function
     return decorator
 
+def validate_username(username):
+    if len(username) < 3 or len(username) > 20:
+        return False
+    
+    for char in username:
+        if not (char.isalnum() or char == '_'):
+            return False
+
+    return True
+
+def validate_email(email):
+    if '@' not in email or '.' not in email:
+        return False
+    return True
+
+def validate_password(password):
+    if len(password) < 12:
+        return False
+
+    has_upper = False
+    has_lower = False
+    has_number = False
+    has_special = False
+
+    special_chars = "!@#$%^&*"
+
+    for char in password:
+        if char.isupper():
+            has_upper = True
+        elif char.islower():
+            has_lower = True
+        elif char.isdigit():
+            has_number = True
+        elif char in special_chars:
+            has_special = True
+
+    return has_upper and has_lower and has_number and has_special
 
 @app.route('/')
 def home():
@@ -121,7 +159,9 @@ def home():
         <h2>Register</h2>
         <form method='POST' action='/register'>
             <input name='username' placeholder='Username' required><br><br>
+            <input name='email' placeholder='Email' required><br><br>
             <input name='password' type='password' placeholder='Password' required><br><br>
+            <input name='confirm_password' type='password' placeholder='Confirm Password' required><br><br>
             <button type='submit'>Register</button>
         </form>
 
@@ -253,28 +293,43 @@ TODO:
 @app.route('/register', methods=['POST'])
 def register():
     username = request.form.get('username', '').strip()
+    email = request.form.get('email', '').strip()
     password = request.form.get('password', '').strip()
+    confirm = request.form.get('confirm_password', '').strip()
 
-    if not username or not password:
-        return 'Username and password are required.'
-    
-    # Temporary way to deal with guest user. Will implement proper guest access later.
-    if username.lower() == 'guest':
-        return "The username 'guest' is reserved. <a href='/'>Go back</a>"
+    if not username or not email or not password or not confirm:
+        return "All fields are required."
+
+    if not validate_username(username):
+        return "Invalid username (3-20 chars, letters/numbers/_ only)."
+
+    if not validate_email(email):
+        return "Invalid email format."
+
+    if not validate_password(password):
+        return "Password must be 12+ chars with upper, lower, number, special."
+
+    if password != confirm:
+        return "Passwords do not match."
 
     users = load_users()
 
     for user in users:
         if user['username'] == username:
-            return "Username already exists. <a href='/'>Go back</a>"
+            return "Username already exists."
+        if user.get('email') == email:
+            return "Email already exists."
 
-
-    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(12))
 
     new_user = {
         'username': username,
+        'email': email,
         'password': hashed.decode('utf-8'),
-        'role': 'user'
+        'role': 'user',
+        'failed_attempts': 0,
+        'locked_until': None,
+        'created_at': time.time()
     }
 
     users.append(new_user)
@@ -296,19 +351,34 @@ def login():
     username = request.form.get('username', '').strip()
     password = request.form.get('password', '').strip()
 
-    if username == 'guest':
-        return "Guest cannot log in. <a href='/'>Go back</a>"
-
     users = load_users()
 
     for user in users:
         if user['username'] == username:
+
+            # 🔒 Check lockout
+            if user.get('locked_until'):
+                if time.time() < user['locked_until']:
+                    return "Account locked. Try again later."
+
             if bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+                user['failed_attempts'] = 0
+                user['locked_until'] = None
+                save_users(users)
+
                 session['username'] = username
                 return redirect(url_for('home'))
 
-    return "Invalid username or password. <a href='/'>Go back</a>"
+            else:
+                user['failed_attempts'] += 1
 
+                if user['failed_attempts'] >= 5:
+                    user['locked_until'] = time.time() + (15 * 60)
+
+                save_users(users)
+                return "Invalid credentials."
+
+    return "Invalid username or password."
 
 @app.route('/logout')
 def logout():
