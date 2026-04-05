@@ -14,7 +14,10 @@ DATA_DIR = 'data'
 USERS_FILE = os.path.join(DATA_DIR, 'users.json')
 FILES_FILE = os.path.join(DATA_DIR, 'files.json')
 SHARES_FILE = os.path.join(DATA_DIR, 'shares.json')
+LOG_FILE = os.path.join(DATA_DIR, 'security.json')
 UPLOAD_FOLDER = 'uploads'
+
+login_attempts = {}
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -29,8 +32,11 @@ ROLE_HIERARCHY = {
 def load_json(path, default):
     if not os.path.exists(path):
         return default
-    with open(path, 'r') as f:
-        return json.load(f)
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except:
+        return default
 
 def save_json(path, data):
     with open(path, 'w') as f:
@@ -47,6 +53,12 @@ def load_files():
 
 def save_files(files):
     save_json(FILES_FILE, files)
+
+def load_logs():
+    return load_json(LOG_FILE, [])
+
+def save_logs(logs):
+    save_json(LOG_FILE, logs)
 
 def load_shares():
     return load_json(SHARES_FILE, [])
@@ -124,6 +136,18 @@ def validate_password(password):
             has_special = True
 
     return has_upper and has_lower and has_number and has_special
+
+def log_event(event_type, username=None, ip=None):
+    logs = load_logs()
+
+    logs.append({
+        "time": time.time(),
+        "event": event_type,
+        "user": username,
+        "ip": ip
+    })
+
+    save_logs(logs)
 
 @app.route('/')
 def home():
@@ -348,6 +372,24 @@ TODO:
 '''
 @app.route('/login', methods=['POST'])
 def login():
+    
+    ip = request.remote_addr
+    current_time = time.time()
+
+    if ip not in login_attempts:
+        login_attempts[ip] = []
+
+    login_attempts[ip] = [
+        t for t in login_attempts[ip]
+        if current_time - t < 60
+    ]
+
+    if len(login_attempts[ip]) >= 10:
+        log_event(f"RATE LIMIT EXCEEDED: {ip}")
+        return "Too many login attempts. Try again later."
+
+    login_attempts[ip].append(current_time)
+
     username = request.form.get('username', '').strip()
     password = request.form.get('password', '').strip()
 
@@ -356,9 +398,9 @@ def login():
     for user in users:
         if user['username'] == username:
 
-            # 🔒 Check lockout
             if user.get('locked_until'):
                 if time.time() < user['locked_until']:
+                    log_event("LOGIN BLOCKED (LOCKED):", username, ip)
                     return "Account locked. Try again later."
 
             if bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
@@ -366,18 +408,25 @@ def login():
                 user['locked_until'] = None
                 save_users(users)
 
+                log_event("LOGIN_SUCCESS", username, ip)
+
                 session['username'] = username
                 return redirect(url_for('home'))
 
             else:
                 user['failed_attempts'] += 1
 
+                log_event("LOGIN_FAILED", username, ip)
+
+                # 🔒 LOCK ACCOUNT AFTER 5 FAILS
                 if user['failed_attempts'] >= 5:
                     user['locked_until'] = time.time() + (15 * 60)
+                    log_event("ACCOUNT LOCKED", username, ip)
 
                 save_users(users)
-                return "Invalid credentials."
+                return "Invalid username or password."
 
+    log_event("LOGIN_FAILED", username, ip)
     return "Invalid username or password."
 
 @app.route('/logout')
