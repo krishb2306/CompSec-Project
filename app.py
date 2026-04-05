@@ -385,7 +385,7 @@ def login():
     ]
 
     if len(login_attempts[ip]) >= 10:
-        log_event(f"RATE LIMIT EXCEEDED: {ip}")
+        log_event("RATE_LIMIT", None, ip)
         return "Too many login attempts. Try again later."
 
     login_attempts[ip].append(current_time)
@@ -418,7 +418,6 @@ def login():
 
                 log_event("LOGIN_FAILED", username, ip)
 
-                # 🔒 LOCK ACCOUNT AFTER 5 FAILS
                 if user['failed_attempts'] >= 5:
                     user['locked_until'] = time.time() + (15 * 60)
                     log_event("ACCOUNT LOCKED", username, ip)
