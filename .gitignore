@@ -60,3 +60,7 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+#Priv Key
+*.pem
+*.key
