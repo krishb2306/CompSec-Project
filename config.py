@@ -2,9 +2,9 @@ import os
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data")
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
-LOGS_DIR = os.path.join(BASE_DIR, "logs")
+DATA_DIR = os.path.join(BASE_DIR, os.environ.get("DATA_DIR", "data"))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, os.environ.get("UPLOAD_FOLDER", "uploads"))
+LOGS_DIR = os.path.join(BASE_DIR, os.environ.get("LOGS_DIR", "logs"))
 
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 FILES_FILE = os.path.join(DATA_DIR, "files.json")
@@ -31,5 +31,5 @@ class Config:
     UPLOAD_FOLDER = UPLOAD_FOLDER
     ROLE_HIERARCHY = ROLE_HIERARCHY
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = False
     SESSION_COOKIE_SAMESITE = "Lax"

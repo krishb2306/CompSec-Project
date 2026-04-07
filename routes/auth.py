@@ -86,8 +86,8 @@ def login():
                 user["failed_attempts"] = 0
                 user["locked_until"] = None
                 save_users(users)
-                log_event("LOGIN_SUCCESS", username, ip)
                 session["username"] = username
+                log_event("LOGIN_SUCCESS", username, ip)
                 return redirect(url_for("home.home"))
 
             user["failed_attempts"] += 1
