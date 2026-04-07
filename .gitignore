@@ -61,6 +61,9 @@ Thumbs.db
 tmp/
 temp/
 
-#Priv Key
+# Priv Key
 *.pem
 *.key
+
+# App Instructions
+secure_app.pdf
