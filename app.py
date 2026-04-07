@@ -8,6 +8,13 @@ from functools import wraps
 from flask import Flask, request, redirect, url_for, session, send_from_directory, abort
 
 app = Flask(__name__)
+
+@app.before_request
+def require_https():
+    if not request.is_secure and not app.debug:
+        url = request.url.replace("http://", "https://", 1)
+        return redirect(url, code=301)
+
 app.secret_key = 'dev-secret-key'  # basic app only; replace later
 
 DATA_DIR = 'data'
@@ -644,4 +651,9 @@ def ensure_guest_user():
 
 if __name__ == '__main__':
     ensure_guest_user()
-    app.run(debug=True)
+    app.run(
+        ssl_context=('cert.pem', 'key.pem'),
+        host='0.0.0.0',
+        port=5001,
+        debug=True
+    )
