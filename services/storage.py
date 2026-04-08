@@ -41,3 +41,14 @@ def load_logs():
 
 def save_logs(logs):
     storage.save(current_app.config["SECURITY_LOG_FILE"], logs)
+
+
+def load_sessions():
+    data = storage.load(current_app.config["SESSIONS_FILE"])
+    if isinstance(data, dict):
+        return data
+    return {}
+
+
+def save_sessions(sessions):
+    storage.save(current_app.config["SESSIONS_FILE"], sessions)
