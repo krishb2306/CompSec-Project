@@ -5,7 +5,7 @@ from routes.admin import admin_bp
 from routes.auth import auth_bp
 from routes.files import files_bp
 from routes.home import home_bp
-from services.auth import ensure_guest_user
+from services.app_access import ensure_guest_user
 from services.storage import ensure_storage_directories
 
 

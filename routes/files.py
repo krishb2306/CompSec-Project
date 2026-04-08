@@ -5,7 +5,7 @@ import html
 from flask import Blueprint, current_app, redirect, request, send_from_directory, session, url_for
 from werkzeug.utils import secure_filename
 
-from services.auth import get_current_user, require_auth, require_role
+from services.app_access import get_current_user, require_auth, require_role
 from services.file_access import can_delete, can_edit, can_share, can_view, get_file_role_for_user
 from services.storage import (
     load_files,
@@ -105,29 +105,61 @@ def create_text():
     return redirect(url_for("home.home"))
 
 
-@files_bp.route("/delete/<file_id>", methods=["POST"])
+@files_bp.route("/edit/<file_id>")
 @require_auth
 @require_role("user")
-def delete_file(file_id):
+def edit_file_form(file_id):
     files = load_files()
     shares = load_shares()
     current_user = get_current_user()
-
     target_file = next((f for f in files if f["id"] == file_id), None)
+
     if not target_file:
         return "File not found. <a href='/'>Go back</a>"
+
     file_role = get_file_role_for_user(target_file, shares, current_user)
-    if not can_delete(file_role):
+    if not can_edit(file_role):
         return "Access denied. <a href='/'>Go back</a>"
 
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except UnicodeDecodeError:
+        return "Only text files can be edited in the web app. <a href='/'>Go back</a>"
 
-    files = [f for f in files if f["id"] != file_id]
-    shares = [s for s in shares if s["file_id"] != file_id]
-    save_files(files)
-    save_shares(shares)
+    return f"""
+    <h2>Edit: {html.escape(target_file["original_name"])}</h2>
+    <p>Your file role: <b>{file_role}</b></p>
+    <form method='POST' action='/edit/{file_id}'>
+        <textarea name='content' rows='24' cols='120' required>{html.escape(content)}</textarea><br><br>
+        <button type='submit'>Save</button>
+    </form>
+    <a href='/'>Cancel</a>
+    """
+
+
+@files_bp.route("/edit/<file_id>", methods=["POST"])
+@require_auth
+@require_role("user")
+def edit_file(file_id):
+    files = load_files()
+    shares = load_shares()
+    current_user = get_current_user()
+    target_file = next((f for f in files if f["id"] == file_id), None)
+
+    if not target_file:
+        return "File not found. <a href='/'>Go back</a>"
+
+    file_role = get_file_role_for_user(target_file, shares, current_user)
+    if not can_edit(file_role):
+        return "Access denied. <a href='/'>Go back</a>"
+
+    file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
+    new_content = request.form.get("content", "")
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(new_content)
+
     return redirect(url_for("home.home"))
 
 
@@ -180,6 +212,32 @@ def share_file(file_id):
             "file_role": file_role,
         }
     )
+    save_shares(shares)
+    return redirect(url_for("home.home"))
+
+
+@files_bp.route("/delete/<file_id>", methods=["POST"])
+@require_auth
+@require_role("user")
+def delete_file(file_id):
+    files = load_files()
+    shares = load_shares()
+    current_user = get_current_user()
+
+    target_file = next((f for f in files if f["id"] == file_id), None)
+    if not target_file:
+        return "File not found. <a href='/'>Go back</a>"
+    file_role = get_file_role_for_user(target_file, shares, current_user)
+    if not can_delete(file_role):
+        return "Access denied. <a href='/'>Go back</a>"
+
+    file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    files = [f for f in files if f["id"] != file_id]
+    shares = [s for s in shares if s["file_id"] != file_id]
+    save_files(files)
     save_shares(shares)
     return redirect(url_for("home.home"))
 
@@ -239,61 +297,3 @@ def open_file(stored_name):
             "This file is not displayable as text in the web app. "
             f"<a href='/download/{target_file['stored_name']}'>Download instead</a>"
         )
-
-
-@files_bp.route("/edit/<file_id>")
-@require_auth
-@require_role("user")
-def edit_file_form(file_id):
-    files = load_files()
-    shares = load_shares()
-    current_user = get_current_user()
-    target_file = next((f for f in files if f["id"] == file_id), None)
-
-    if not target_file:
-        return "File not found. <a href='/'>Go back</a>"
-
-    file_role = get_file_role_for_user(target_file, shares, current_user)
-    if not can_edit(file_role):
-        return "Access denied. <a href='/'>Go back</a>"
-
-    file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-    except UnicodeDecodeError:
-        return "Only text files can be edited in the web app. <a href='/'>Go back</a>"
-
-    return f"""
-    <h2>Edit: {html.escape(target_file["original_name"])}</h2>
-    <p>Your file role: <b>{file_role}</b></p>
-    <form method='POST' action='/edit/{file_id}'>
-        <textarea name='content' rows='24' cols='120' required>{html.escape(content)}</textarea><br><br>
-        <button type='submit'>Save</button>
-    </form>
-    <a href='/'>Cancel</a>
-    """
-
-
-@files_bp.route("/edit/<file_id>", methods=["POST"])
-@require_auth
-@require_role("user")
-def edit_file(file_id):
-    files = load_files()
-    shares = load_shares()
-    current_user = get_current_user()
-    target_file = next((f for f in files if f["id"] == file_id), None)
-
-    if not target_file:
-        return "File not found. <a href='/'>Go back</a>"
-
-    file_role = get_file_role_for_user(target_file, shares, current_user)
-    if not can_edit(file_role):
-        return "Access denied. <a href='/'>Go back</a>"
-
-    file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
-    new_content = request.form.get("content", "")
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(new_content)
-
-    return redirect(url_for("home.home"))

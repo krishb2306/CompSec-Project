@@ -1,6 +1,6 @@
 from flask import Blueprint
 
-from services.auth import get_current_user
+from services.app_access import get_current_user
 from services.file_access import can_delete, can_edit, can_share, can_view, get_file_role_for_user
 from services.storage import load_files, load_shares
 
@@ -73,10 +73,10 @@ def home():
     username = current_user["username"]
     role = current_role
 
-    upload_html = ""
+    add_html = ""
     if role in ("user", "admin"):
-        upload_html = """
-        <h2>Upload File</h2>
+        add_html = """
+        <h2>Upload/Create File</h2>
         <form method='POST' action='/upload' enctype='multipart/form-data'>
             <input type='file' name='file' required>
             <button type='submit'>Upload</button>
@@ -172,7 +172,7 @@ def home():
     <p>Logged in as: <b>{username}</b> ({role})</p>
     <a href='/logout'>Logout</a>
 
-    {upload_html}
+    {add_html}
 
     <h2>Your Files</h2>
     <ul>

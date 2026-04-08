@@ -1,6 +1,6 @@
 from flask import Blueprint, current_app, redirect, request, url_for
 
-from services.auth import require_auth, require_role
+from services.app_access import require_auth, require_role
 from services.storage import load_users, save_users
 
 
