@@ -1,7 +1,7 @@
 import time
 
 import bcrypt
-from flask import Blueprint, redirect, request, session, url_for
+from flask import Blueprint, redirect, request, url_for
 
 from services.security import (
     log_event,
@@ -9,6 +9,7 @@ from services.security import (
     validate_password,
     validate_username,
 )
+from services.sessions import create_logged_session, destroy_logged_session
 from services.storage import load_users, save_users
 
 
@@ -54,7 +55,7 @@ def register():
     }
     users.append(new_user)
     save_users(users)
-    session["username"] = username
+    create_logged_session(username)
     log_event("REGISTER_SUCCESS", username)
     return redirect(url_for("home.home"))
 
@@ -86,7 +87,7 @@ def login():
                 user["failed_attempts"] = 0
                 user["locked_until"] = None
                 save_users(users)
-                session["username"] = username
+                create_logged_session(username, ip)
                 log_event("LOGIN_SUCCESS", username, ip)
                 return redirect(url_for("home.home"))
 
@@ -104,5 +105,5 @@ def login():
 
 @auth_bp.route("/logout")
 def logout():
-    session.clear()
+    destroy_logged_session()
     return redirect(url_for("home.home"))
