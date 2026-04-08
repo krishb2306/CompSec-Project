@@ -1,0 +1,20 @@
+[
+    {
+        "file_id": "e6c0371e-6946-4c05-8abe-6712a0cb7e4d",
+        "owner": "admin1",
+        "shared_with": "kingk2306",
+        "file_role": "editor"
+    },
+    {
+        "file_id": "e6c0371e-6946-4c05-8abe-6712a0cb7e4d",
+        "owner": "admin1",
+        "shared_with": "yat",
+        "file_role": "editor"
+    },
+    {
+        "file_id": "e6c0371e-6946-4c05-8abe-6712a0cb7e4d",
+        "owner": "admin1",
+        "shared_with": "guest",
+        "file_role": "viewer"
+    }
+]
