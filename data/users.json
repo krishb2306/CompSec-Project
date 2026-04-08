@@ -1,29 +1,9 @@
 [
     {
-        "username": "test1",
-        "password": "$2b$12$sOrmwnzQLzCXkTyMgDAbCOY1oXuKUfgxuFKApE9H1oxsHnfF55s5G",
-        "role": "user"
-    },
-    {
-        "username": "test2",
-        "password": "$2b$12$.Y/UR8HniFAbF3XZZ6eBzedgFbXc.FxBt/UTmfMt3tlbAyt19ib6m",
-        "role": "user"
-    },
-    {
-        "username": "Yat",
-        "password": "$2b$12$cMHT.q4YrwzU382L7iyVgeI4/6eACcoxJYFVMyM/cXV5X77g1eGkm",
-        "role": "admin"
-    },
-    {
-        "username": "guest",
-        "password": "",
-        "role": "guest"
-    },
-    {
         "username": "kingk2306",
         "email": "krishb.0017@gmail.com",
         "password": "$2b$12$YZuFPYw86Fb4p2jKjoRxKeJm82YS4ekm7.iBjZpCcDdxXSPBtyG/m",
-        "role": "user",
+        "role": "admin",
         "failed_attempts": 5,
         "locked_until": 1775349526.989511,
         "created_at": 1775348597.37819
@@ -36,5 +16,28 @@
         "failed_attempts": 0,
         "locked_until": null,
         "created_at": 1775349562.829783
+    },
+    {
+        "username": "guest",
+        "password": "",
+        "role": "guest"
+    },
+    {
+        "username": "admin1",
+        "email": "admin1@gmail.com",
+        "password": "$2b$12$plIWh7k9gOPYGAULvNoOtOh4xpRa442RosEnaKb7W5ciTdh19vS1m",
+        "role": "admin",
+        "failed_attempts": 0,
+        "locked_until": null,
+        "created_at": 1775683519.1930811
+    },
+    {
+        "username": "yat",
+        "email": "yat@gmail.com",
+        "password": "$2b$12$IDdwi.ZJRD8DCnitk4fN5eHVQv9WrMKrWF2X.2gnbCSbfQXm5lqNO",
+        "role": "user",
+        "failed_attempts": 0,
+        "locked_until": null,
+        "created_at": 1775683904.71587
     }
 ]
