@@ -1,6 +1,8 @@
 import logging
 import time
 
+from email_validator import validate_email as ev_validate_email, EmailNotValidError
+
 from flask import request
 
 from services.storage import load_logs, save_logs
@@ -25,7 +27,11 @@ def validate_username(username):
 
 
 def validate_email(email):
-    return "@" in email and "." in email
+    try:
+        ev_validate_email(email)
+        return True
+    except EmailNotValidError:
+        return False
 
 
 def validate_password(password):
