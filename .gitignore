@@ -67,3 +67,6 @@ temp/
 
 # App Instructions
 secure_app.pdf
+
+# Key
+secret.key
