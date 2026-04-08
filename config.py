@@ -3,15 +3,13 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, os.environ.get("DATA_DIR", "data"))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, os.environ.get("UPLOAD_FOLDER", "uploads"))
 LOGS_DIR = os.path.join(BASE_DIR, os.environ.get("LOGS_DIR", "logs"))
-
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 FILES_FILE = os.path.join(DATA_DIR, "files.json")
 SHARES_FILE = os.path.join(DATA_DIR, "shares.json")
 SESSIONS_FILE = os.path.join(DATA_DIR, "sessions.json")
 SECURITY_LOG_FILE = os.path.join(LOGS_DIR, "security.log")
-SECURITY_JSON_FILE = os.path.join(DATA_DIR, "security.json")
+UPLOAD_FOLDER = os.path.join(BASE_DIR, os.environ.get("UPLOAD_FOLDER", "uploads"))
 
 ROLE_HIERARCHY = {
     "guest": 1,
@@ -22,12 +20,17 @@ ROLE_HIERARCHY = {
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
+    # Bootstrap admin (created on startup if missing). Override via env in production.
+    ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+    ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@gmail.com")
+    ADMIN_PASSWORD = os.environ.get(
+        "ADMIN_PASSWORD", "ChangeMeAdmin123!"
+    )  # must meet register password rules
     USERS_FILE = USERS_FILE
     FILES_FILE = FILES_FILE
     SHARES_FILE = SHARES_FILE
     SESSIONS_FILE = SESSIONS_FILE
     SECURITY_LOG_FILE = SECURITY_LOG_FILE
-    SECURITY_JSON_FILE = SECURITY_JSON_FILE
     UPLOAD_FOLDER = UPLOAD_FOLDER
     ROLE_HIERARCHY = ROLE_HIERARCHY
     SESSION_COOKIE_HTTPONLY = True

@@ -123,8 +123,8 @@ def home():
     else:
         owned_html = "<li>No files uploaded yet.</li>"
 
-    shared_file_ids = [s["file_id"] for s in shares if s["shared_with"] == username or s["shared_with"] == "guest"]
-    shared_files = [f for f in files if f["id"] in shared_file_ids and f["owner"] != current_username]
+    shared_file_ids = [s["file_id"] for s in shares if s["shared_with"] == username]
+    shared_files = [f for f in files if f["id"] in shared_file_ids]
     shared_html = ""
     if shared_files:
         for f in shared_files:

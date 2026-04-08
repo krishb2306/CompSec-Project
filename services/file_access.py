@@ -5,8 +5,8 @@ def normalize_file_role(role):
 
 
 def get_file_role_for_user(file_record, shares, current_user):
-    username = current_user.get("username", "guest")
-    user_role = current_user.get("role", "guest")
+    username = current_user["username"] if current_user else "guest"
+    user_role = current_user["role"] if current_user else "guest"
 
     # File is owned by user -> owner
     if file_record["owner"] == username:

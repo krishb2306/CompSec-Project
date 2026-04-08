@@ -20,27 +20,35 @@ login_attempts = {}
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
+    ip = request.remote_addr
     username = request.form.get("username", "").strip()
     email = request.form.get("email", "").strip()
     password = request.form.get("password", "").strip()
     confirm = request.form.get("confirm_password", "").strip()
 
     if not username or not email or not password or not confirm:
+        log_event("REGISTER_FAILED", username or None, ip, details="missing_fields")
         return "All fields are required."
     if not validate_username(username):
+        log_event("REGISTER_FAILED", username, ip, details="invalid_username")
         return "Invalid username (3-20 chars, letters/numbers/_ only)."
     if not validate_email(email):
+        log_event("REGISTER_FAILED", username, ip, details="invalid_email")
         return "Invalid email format."
     if not validate_password(password):
+        log_event("REGISTER_FAILED", username, ip, details="invalid_password")
         return "Password must be 12+ chars with upper, lower, number, special."
     if password != confirm:
+        log_event("REGISTER_FAILED", username, ip, details="password_mismatch")
         return "Passwords do not match."
 
     users = load_users()
     for user in users:
         if user["username"] == username:
+            log_event("REGISTER_FAILED", username, ip, details="duplicate_username")
             return "Username already exists."
         if user.get("email") == email:
+            log_event("REGISTER_FAILED", username, ip, details="duplicate_email")
             return "Email already exists."
 
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(12))
@@ -55,8 +63,8 @@ def register():
     }
     users.append(new_user)
     save_users(users)
-    create_logged_session(username)
-    log_event("REGISTER_SUCCESS", username)
+    create_logged_session(username, ip)
+    log_event("REGISTER_SUCCESS", username, ip)
     return redirect(url_for("home.home"))
 
 
@@ -69,12 +77,14 @@ def login():
 
     login_attempts[ip] = [t for t in login_attempts[ip] if current_time - t < 60]
     if len(login_attempts[ip]) >= 10:
-        log_event("RATE_LIMIT", None, ip)
+        log_event("RATE_LIMIT", None, ip, details="login_attempts_per_ip")
         return "Too many login attempts. Try again later."
     login_attempts[ip].append(current_time)
 
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "").strip()
+    log_event("LOGIN_ATTEMPT", username or None, ip)
+
     users = load_users()
 
     for user in users:
@@ -92,14 +102,14 @@ def login():
                 return redirect(url_for("home.home"))
 
             user["failed_attempts"] += 1
-            log_event("LOGIN_FAILED", username, ip)
+            log_event("LOGIN_FAILED", username, ip, details="invalid_credentials")
             if user["failed_attempts"] >= 5:
                 user["locked_until"] = time.time() + (15 * 60)
-                log_event("ACCOUNT_LOCKED", username, ip)
+                log_event("ACCOUNT_LOCKED", username, ip, details="failed_attempts_exceeded")
             save_users(users)
             return "Invalid username or password."
 
-    log_event("LOGIN_FAILED", username, ip)
+    log_event("LOGIN_FAILED", username or None, ip, details="unknown_user")
     return "Invalid username or password."
 
 

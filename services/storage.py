@@ -36,13 +36,6 @@ def save_shares(shares):
     storage.save(current_app.config["SHARES_FILE"], shares)
 
 
-def load_logs():
-    return storage.load(current_app.config["SECURITY_LOG_FILE"])
-
-def save_logs(logs):
-    storage.save(current_app.config["SECURITY_LOG_FILE"], logs)
-
-
 def load_sessions():
     data = storage.load(current_app.config["SESSIONS_FILE"])
     if isinstance(data, dict):

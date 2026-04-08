@@ -1,5 +1,7 @@
+import time
 from functools import wraps
 
+import bcrypt
 from flask import abort, current_app, redirect, session, url_for
 
 from services.storage import load_users, save_users
@@ -42,6 +44,35 @@ def require_role(min_role):
         return decorated_function
 
     return decorator
+
+
+def ensure_admin_user():
+    """Ensure one admin account exists (override credentials via env in production)."""
+    username = current_app.config["ADMIN_USERNAME"]
+    email = current_app.config["ADMIN_EMAIL"]
+    password = current_app.config["ADMIN_PASSWORD"]
+
+    users = load_users()
+    for u in users:
+        if u["username"] == username:
+            if u.get("role") != "admin":
+                u["role"] = "admin"
+                save_users(users)
+            return
+
+    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(12))
+    users.append(
+        {
+            "username": username,
+            "email": email,
+            "password": hashed.decode("utf-8"),
+            "role": "admin",
+            "failed_attempts": 0,
+            "locked_until": None,
+            "created_at": time.time(),
+        }
+    )
+    save_users(users)
 
 
 def ensure_guest_user():

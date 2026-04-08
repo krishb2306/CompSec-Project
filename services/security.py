@@ -1,20 +1,33 @@
+import json
 import logging
+import os
 import time
 
 from email_validator import validate_email as ev_validate_email, EmailNotValidError
 
-from flask import request
-
-from services.storage import load_logs, save_logs
-
+from flask import has_request_context, request
 
 security_logger = logging.getLogger("security")
-if not security_logger.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    handler.setFormatter(formatter)
-    security_logger.addHandler(handler)
 security_logger.setLevel(logging.INFO)
+security_logger.propagate = False
+
+
+def init_security_logging(app):
+    """Append security events to logs/security.log (plain text, one JSON object per line)."""
+    log_path = os.path.abspath(app.config["SECURITY_LOG_FILE"])
+    parent = os.path.dirname(log_path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+    for h in security_logger.handlers:
+        if isinstance(h, logging.FileHandler):
+            existing = getattr(h, "baseFilename", None)
+            if existing and os.path.abspath(existing) == log_path:
+                return
+
+    fh = logging.FileHandler(log_path, encoding="utf-8")
+    fh.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+    security_logger.addHandler(fh)
 
 
 def validate_username(username):
@@ -55,17 +68,20 @@ def validate_password(password):
     return has_upper and has_lower and has_number and has_special
 
 
-def log_event(event_type, username=None, ip=None):
-    ip_addr = ip or request.remote_addr
-    logs = load_logs()
-    logs.append(
-        {
-            "time": time.time(),
-            "event": event_type,
-            "user": username,
-            "ip": ip_addr,
-            "user_agent": request.headers.get("User-Agent"),
-        }
-    )
-    save_logs(logs)
-    security_logger.info("%s user=%s ip=%s", event_type, username, ip_addr)
+def log_event(event_type, username=None, ip=None, details=None):
+    if has_request_context():
+        ip_addr = ip if ip is not None else request.remote_addr
+        user_agent = request.headers.get("User-Agent")
+    else:
+        ip_addr = ip
+        user_agent = None
+
+    payload = {
+        "event": event_type,
+        "user": username,
+        "ip": ip_addr,
+        "user_agent": user_agent,
+        "details": details,
+        "ts": time.time(),
+    }
+    security_logger.info("%s", json.dumps(payload, default=str, ensure_ascii=False))
