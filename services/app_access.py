@@ -2,26 +2,21 @@ import time
 from functools import wraps
 
 import bcrypt
-from flask import abort, current_app, redirect, session, url_for
+from flask import abort, current_app, g, has_request_context, redirect, url_for
 
 from services.storage import load_users, save_users
 
 
 def get_current_user():
-    username = session.get("username")
-    if not username:
+    if not has_request_context():
         return None
-    users = load_users()
-    for user in users:
-        if user["username"] == username:
-            return user
-    return None
+    return getattr(g, "current_user", None)
 
 
 def require_auth(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if "username" not in session:
+        if not get_current_user():
             return redirect(url_for("home.home"))
         return f(*args, **kwargs)
 
@@ -55,9 +50,11 @@ def ensure_admin_user():
     users = load_users()
     for u in users:
         if u["username"] == username:
+            if "locked_by_admin" not in u:
+                u["locked_by_admin"] = False
             if u.get("role") != "admin":
                 u["role"] = "admin"
-                save_users(users)
+            save_users(users)
             return
 
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(12))
@@ -69,6 +66,7 @@ def ensure_admin_user():
             "role": "admin",
             "failed_attempts": 0,
             "locked_until": None,
+            "locked_by_admin": False,
             "created_at": time.time(),
         }
     )

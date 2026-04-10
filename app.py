@@ -1,4 +1,4 @@
-from flask import Flask, redirect, request
+from flask import Flask, g, redirect, request
 
 from config import Config
 from routes.admin import admin_bp
@@ -7,6 +7,7 @@ from routes.files import files_bp
 from routes.home import home_bp
 from services.app_access import ensure_admin_user, ensure_guest_user
 from services.security import init_security_logging
+from services.sessions import clear_session_cookie, load_user_into_g
 from services.storage import ensure_storage_directories
 
 
@@ -21,6 +22,16 @@ def create_app():
             url = request.url.replace("http://", "https://", 1)
             return redirect(url, code=301)
         return None
+
+    @app.before_request
+    def load_user_session():
+        load_user_into_g()
+
+    @app.after_request
+    def drop_invalid_session_cookie(response):
+        if getattr(g, "_clear_session_cookie", False):
+            clear_session_cookie(response)
+        return response
 
     app.register_blueprint(home_bp)
     app.register_blueprint(auth_bp)

@@ -20,12 +20,17 @@ ROLE_HIERARCHY = {
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
+    # Secure session cookie (idle timeout in seconds; template default 30 min).
+    SESSION_TIMEOUT = int(os.environ.get("SESSION_TIMEOUT", "1800"))
+    SESSION_COOKIE_NAME = os.environ.get("SESSION_COOKIE_NAME", "session_token")
+    SESSION_SAMESITE = os.environ.get("SESSION_SAMESITE", "Strict")
+    # Set to "0" for HTTP local dev. If unset, secure cookies are off when DEBUG.
+    _sc = os.environ.get("SESSION_COOKIE_SECURE", "").strip().lower()
+    SESSION_COOKIE_SECURE = None if _sc == "" else _sc in ("1", "true", "yes")
     # Bootstrap admin (created on startup if missing). Override via env in production.
     ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@gmail.com")
-    ADMIN_PASSWORD = os.environ.get(
-        "ADMIN_PASSWORD", "ChangeMeAdmin123!"
-    )  # must meet register password rules
+    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "ChangeMeAdmin123!")
     USERS_FILE = USERS_FILE
     FILES_FILE = FILES_FILE
     SHARES_FILE = SHARES_FILE
@@ -33,6 +38,3 @@ class Config:
     SECURITY_LOG_FILE = SECURITY_LOG_FILE
     UPLOAD_FOLDER = UPLOAD_FOLDER
     ROLE_HIERARCHY = ROLE_HIERARCHY
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SECURE = False
-    SESSION_COOKIE_SAMESITE = "Lax"

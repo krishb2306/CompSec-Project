@@ -1,0 +1,17 @@
+{# Expects: app_title (optional), current_user (optional dict with username, role), show_admin_link (bool) #}
+<nav class="topnav" aria-label="Main">
+  <div>
+    <a class="topnav__brand" href="{{ url_for('home.home') }}">{{ app_title|default('Secure Document Sharing') }}</a>
+    {% if current_user %}
+    <p class="topnav__meta">Signed in as <strong>{{ current_user.username }}</strong> · {{ current_user.role }}</p>
+    {% endif %}
+  </div>
+  <div class="topnav__actions">
+    {% if current_user %}
+      {% if show_admin_link %}
+      <a href="{{ url_for('admin.admin_users') }}">Admin panel</a>
+      {% endif %}
+      <a href="{{ url_for('auth.logout') }}">Log out</a>
+    {% endif %}
+  </div>
+</nav>

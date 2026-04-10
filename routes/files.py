@@ -1,8 +1,7 @@
 import os
 import uuid
-import html
 
-from flask import Blueprint, current_app, redirect, request, send_from_directory, session, url_for
+from flask import Blueprint, current_app, redirect, render_template, request, send_from_directory, url_for
 from werkzeug.utils import secure_filename
 
 from services.app_access import get_current_user, require_auth, require_role
@@ -14,6 +13,7 @@ from services.storage import (
     save_files,
     save_shares,
 )
+from ui.pages import nav_context, render_message_page
 
 
 files_bp = Blueprint("files", __name__)
@@ -24,10 +24,10 @@ files_bp = Blueprint("files", __name__)
 @require_role("user")
 def upload():
     if "file" not in request.files:
-        return "No file selected. <a href='/'>Go back</a>"
+        return render_message_page("Upload", "No file selected.")
     file = request.files["file"]
     if file.filename == "":
-        return "No file selected. <a href='/'>Go back</a>"
+        return render_message_page("Upload", "No file selected.")
 
     file_id = str(uuid.uuid4())
     unique_name = f"{file_id}_{file.filename}"
@@ -38,7 +38,7 @@ def upload():
     files.append(
         {
             "id": file_id,
-            "owner": session["username"],
+            "owner": get_current_user()["username"],
             "original_name": file.filename,
             "stored_name": unique_name,
         }
@@ -63,17 +63,8 @@ def _normalize_txt_filename(raw_name):
 @require_auth
 @require_role("user")
 def create_text_form():
-    return """
-    <h1>Create text file</h1>
-    <p>Name must end in <code>.txt</code> (added automatically if omitted).</p>
-    <form method='POST' action='/create-text'>
-        <label>File name: <input name='filename' placeholder='notes.txt' required maxlength='200'></label><br><br>
-        <label>Content (optional):</label><br>
-        <textarea name='content' rows='16' cols='80' placeholder='Type your text here...'></textarea><br><br>
-        <button type='submit'>Create</button>
-    </form>
-    <p><a href='/'>Cancel</a></p>
-    """
+    ctx = nav_context()
+    return render_template("files/create_text.html", **ctx)
 
 
 @files_bp.route("/create-text", methods=["POST"])
@@ -84,7 +75,12 @@ def create_text():
     content = request.form.get("content", "")
     original_name = _normalize_txt_filename(raw)
     if not original_name:
-        return "Invalid file name. Use letters, numbers, dots, dashes, underscores. <a href='/create-text'>Back</a>"
+        return render_message_page(
+            "Invalid name",
+            "Use letters, numbers, dots, dashes, and underscores in the file name.",
+            back_href=url_for("files.create_text_form"),
+            back_label="Try again",
+        )
 
     file_id = str(uuid.uuid4())
     unique_name = f"{file_id}_{original_name}"
@@ -96,7 +92,7 @@ def create_text():
     files.append(
         {
             "id": file_id,
-            "owner": session["username"],
+            "owner": get_current_user()["username"],
             "original_name": original_name,
             "stored_name": unique_name,
         }
@@ -115,28 +111,30 @@ def edit_file_form(file_id):
     target_file = next((f for f in files if f["id"] == file_id), None)
 
     if not target_file:
-        return "File not found. <a href='/'>Go back</a>"
+        return render_message_page("Not found", "That file does not exist.")
 
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_edit(file_role):
-        return "Access denied. <a href='/'>Go back</a>"
+        return render_message_page("Access denied", "You cannot edit this file.")
 
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
     except UnicodeDecodeError:
-        return "Only text files can be edited in the web app. <a href='/'>Go back</a>"
+        return render_message_page(
+            "Not a text file",
+            "Only text files can be edited in the web app. Download the file instead.",
+        )
 
-    return f"""
-    <h2>Edit: {html.escape(target_file["original_name"])}</h2>
-    <p>Your file role: <b>{file_role}</b></p>
-    <form method='POST' action='/edit/{file_id}'>
-        <textarea name='content' rows='24' cols='120' required>{html.escape(content)}</textarea><br><br>
-        <button type='submit'>Save</button>
-    </form>
-    <a href='/'>Cancel</a>
-    """
+    ctx = nav_context()
+    ctx.update(
+        original_name=target_file["original_name"],
+        file_role=file_role,
+        file_id=file_id,
+        content=content,
+    )
+    return render_template("files/edit.html", **ctx)
 
 
 @files_bp.route("/edit/<file_id>", methods=["POST"])
@@ -149,11 +147,11 @@ def edit_file(file_id):
     target_file = next((f for f in files if f["id"] == file_id), None)
 
     if not target_file:
-        return "File not found. <a href='/'>Go back</a>"
+        return render_message_page("Not found", "That file does not exist.")
 
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_edit(file_role):
-        return "Access denied. <a href='/'>Go back</a>"
+        return render_message_page("Access denied", "You cannot edit this file.")
 
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
     new_content = request.form.get("content", "")
@@ -172,31 +170,27 @@ def share_file(file_id):
     shared_with = request.form.get("shared_with", "").strip()
     file_role = request.form.get("file_role", "viewer").strip().lower()
 
-    if not shared_with:
-        return "Must provide a username to share with. <a href='/'>Go back</a>"
+    if not shared_with or shared_with.lower() == "guest":
+        return render_message_page("Share failed", "Enter a username to share with.")
     if file_role not in {"viewer", "editor"}:
-        return "Invalid file role. <a href='/'>Go back</a>"
+        return render_message_page("Share failed", "Invalid permission (use viewer or editor).")
 
     users = load_users()
     files = load_files()
     shares = load_shares()
 
     user_exists = any(u["username"] == shared_with for u in users)
-    is_public_share = shared_with == "guest"
-    if not user_exists and not is_public_share:
-        return "That user does not exist. <a href='/'>Go back</a>"
+    if not user_exists:
+        return render_message_page("Share failed", "That user does not exist.")
     if shared_with == current_username:
-        return "You already own this file. <a href='/'>Go back</a>"
+        return render_message_page("Share failed", "You already own this file.")
 
     target_file = next((f for f in files if f["id"] == file_id), None)
     if not target_file:
-        return "File not found. <a href='/'>Go back</a>"
+        return render_message_page("Not found", "That file does not exist.")
     current_file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_share(current_file_role):
-        return "You can only share your own files. <a href='/'>Go back</a>"
-
-    if shared_with == "guest":
-        file_role = "viewer"
+        return render_message_page("Share failed", "You can only share files you own.")
 
     for s in shares:
         if s.get("file_id") == file_id and s.get("shared_with") == shared_with:
@@ -216,6 +210,60 @@ def share_file(file_id):
     return redirect(url_for("home.home"))
 
 
+@files_bp.route("/make-public/<file_id>", methods=["POST"])
+@require_auth
+@require_role("user")
+def make_public(file_id):
+    current_user = get_current_user()
+    files = load_files()
+    shares = load_shares()
+
+    target_file = next((f for f in files if f["id"] == file_id), None)
+    if not target_file:
+        return render_message_page("Not found", "That file does not exist.")
+    current_file_role = get_file_role_for_user(target_file, shares, current_user)
+    if not can_share(current_file_role):
+        return render_message_page("Access denied", "You can only change visibility for files you own.")
+
+    for s in shares:
+        if s.get("file_id") == file_id and s.get("shared_with") == "guest":
+            s["file_role"] = "viewer"
+            save_shares(shares)
+            return redirect(url_for("home.home"))
+
+    shares.append(
+        {
+            "file_id": file_id,
+            "owner": target_file["owner"],
+            "shared_with": "guest",
+            "file_role": "viewer",
+        }
+    )
+    save_shares(shares)
+    return redirect(url_for("home.home"))
+
+
+@files_bp.route("/unmake-public/<file_id>", methods=["POST"])
+@require_auth
+@require_role("user")
+def unmake_public(file_id):
+    current_user = get_current_user()
+    files = load_files()
+    shares = load_shares()
+
+    target_file = next((f for f in files if f["id"] == file_id), None)
+    if not target_file:
+        return render_message_page("Not found", "That file does not exist.")
+    current_file_role = get_file_role_for_user(target_file, shares, current_user)
+    if not can_share(current_file_role):
+        return render_message_page("Access denied", "You can only change visibility for files you own.")
+
+    new_shares = [s for s in shares if not (s.get("file_id") == file_id and s.get("shared_with") == "guest")]
+    if len(new_shares) != len(shares):
+        save_shares(new_shares)
+    return redirect(url_for("home.home"))
+
+
 @files_bp.route("/delete/<file_id>", methods=["POST"])
 @require_auth
 @require_role("user")
@@ -226,10 +274,10 @@ def delete_file(file_id):
 
     target_file = next((f for f in files if f["id"] == file_id), None)
     if not target_file:
-        return "File not found. <a href='/'>Go back</a>"
+        return render_message_page("Not found", "That file does not exist.")
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_delete(file_role):
-        return "Access denied. <a href='/'>Go back</a>"
+        return render_message_page("Access denied", "You cannot delete this file.")
 
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
     if os.path.exists(file_path):
@@ -250,11 +298,11 @@ def download(stored_name):
 
     target_file = next((f for f in files if f["stored_name"] == stored_name), None)
     if not target_file:
-        return "File not found. <a href='/'>Go back</a>"
+        return render_message_page("Not found", "That file does not exist or you do not have access.")
 
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_view(file_role):
-        return "File not found or access denied. <a href='/'>Go back</a>"
+        return render_message_page("Not found", "That file does not exist or you do not have access.")
 
     return send_from_directory(
         current_app.config["UPLOAD_FOLDER"],
@@ -272,28 +320,31 @@ def open_file(stored_name):
     target_file = next((f for f in files if f["stored_name"] == stored_name), None)
 
     if not target_file:
-        return "File not found. <a href='/'>Go back</a>"
+        return render_message_page("Not found", "That file does not exist or you do not have access.")
 
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_view(file_role):
-        return "File not found or access denied. <a href='/'>Go back</a>"
+        return render_message_page("Not found", "That file does not exist or you do not have access.")
 
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
     if not os.path.exists(file_path):
-        return "File not found on disk. <a href='/'>Go back</a>"
+        return render_message_page("Not found", "That file is missing on disk.")
 
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
-        safe_content = html.escape(content)
-        return f"""
-        <h2>Viewing: {html.escape(target_file["original_name"])}</h2>
-        <p>Your file role: <b>{file_role}</b></p>
-        <a href='/'>Back</a> | <a href='/download/{target_file["stored_name"]}'>Download</a>
-        <pre style='white-space: pre-wrap; border: 1px solid #ccc; padding: 12px; margin-top: 12px;'>{safe_content}</pre>
-        """
+        ctx = nav_context()
+        ctx.update(
+            original_name=target_file["original_name"],
+            file_role=file_role,
+            stored_name=target_file["stored_name"],
+            preview_text=content,
+        )
+        return render_template("files/view_text.html", **ctx)
     except UnicodeDecodeError:
-        return (
-            "This file is not displayable as text in the web app. "
-            f"<a href='/download/{target_file['stored_name']}'>Download instead</a>"
+        return render_message_page(
+            "Binary or non-text file",
+            "This file cannot be shown as text here.",
+            back_href=url_for("files.download", stored_name=target_file["stored_name"]),
+            back_label="Download instead",
         )

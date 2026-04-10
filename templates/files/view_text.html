@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ original_name }} · Secure Document Sharing{% endblock %}
+{% block topnav %}{% include "components/topnav.html" %}{% endblock %}
+{% block content %}
+  <h1 class="page-title">View file</h1>
+  <p class="lead"><strong class="mono">{{ original_name }}</strong> · your role: <strong>{{ file_role }}</strong></p>
+  <div class="card card--tight">
+    <div class="btn-row" style="margin-bottom:0">
+      <a class="btn btn-ghost" href="{{ url_for('home.home') }}">Back</a>
+      <a class="btn btn-primary" href="{{ url_for('files.download', stored_name=stored_name) }}">Download</a>
+    </div>
+    <pre class="file-preview" tabindex="0">{{ preview_text }}</pre>
+  </div>
+{% endblock %}

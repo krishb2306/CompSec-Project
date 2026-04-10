@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · Secure Document Sharing{% endblock %}
+{% block topnav %}
+  {% include "components/topnav.html" %}
+{% endblock %}
+{% block content %}
+  <h1 class="page-title">{{ title }}</h1>
+  <div class="card">
+    <p class="{% if message_class %}{{ message_class }}{% endif %}">{{ message }}</p>
+    <p class="btn-row" style="margin-top:1rem;margin-bottom:0">
+      <a class="btn btn-primary" href="{{ back_href }}">{{ back_label }}</a>
+    </p>
+  </div>
+{% endblock %}

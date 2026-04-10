@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% from "components/macros.html" import file_item %}
+{% block title %}{% if current_user %}Home{% else %}Welcome{% endif %} · Secure Document Sharing{% endblock %}
+{% block topnav %}
+  {% include "components/topnav.html" %}
+{% endblock %}
+{% block content %}
+
+{% if not current_user %}
+  <h1 class="page-title">Secure Document Sharing</h1>
+  <p class="lead">Share files with controlled roles: viewers and editors. Register an account or sign in to upload and manage your documents.</p>
+
+  <section class="card" aria-labelledby="public-heading">
+    <h2 class="card__title" id="public-heading">Publicly shared files</h2>
+    {% if public_files %}
+    <ul class="file-list">
+      {% for f in public_files %}
+        {{ file_item(f.name, f.meta, f.links) }}
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty-state">No public files available.</p>
+    {% endif %}
+  </section>
+
+  <div class="grid-auth">
+    <section class="card" aria-labelledby="reg-heading">
+      <h2 class="card__title" id="reg-heading">Create an account</h2>
+      <form class="form-stack" method="post" action="{{ url_for('auth.register') }}">
+        <div class="field">
+          <label for="reg-user">Username</label>
+          <input id="reg-user" name="username" type="text" autocomplete="username" required minlength="3" maxlength="20">
+        </div>
+        <div class="field">
+          <label for="reg-email">Email</label>
+          <input id="reg-email" name="email" type="email" autocomplete="email" required>
+        </div>
+        <div class="field">
+          <label for="reg-pass">Password</label>
+          <input id="reg-pass" name="password" type="password" autocomplete="new-password" required minlength="12">
+        </div>
+        <div class="field">
+          <label for="reg-pass2">Confirm password</label>
+          <input id="reg-pass2" name="confirm_password" type="password" autocomplete="new-password" required minlength="12">
+        </div>
+        <p class="empty-state" style="font-size:0.8rem">Password must be 12+ characters with upper, lower, number, and special (!@#$%^&*).</p>
+        <button type="submit" class="btn btn-primary">Register</button>
+      </form>
+    </section>
+
+    <section class="card" aria-labelledby="login-heading">
+      <h2 class="card__title" id="login-heading">Sign in</h2>
+      <form class="form-stack" method="post" action="{{ url_for('auth.login') }}">
+        <div class="field">
+          <label for="login-user">Username</label>
+          <input id="login-user" name="username" type="text" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="login-pass">Password</label>
+          <input id="login-pass" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Log in</button>
+      </form>
+    </section>
+  </div>
+
+{% else %}
+
+  <h1 class="page-title">Your workspace</h1>
+  <p class="lead">Upload files, share with others, and open anything you can access.</p>
+
+  {% if can_upload %}
+  <section class="card" aria-labelledby="upload-heading">
+    <h2 class="card__title" id="upload-heading">Upload a file</h2>
+    <form class="form-stack" method="post" action="{{ url_for('files.upload') }}" enctype="multipart/form-data">
+      <div class="field">
+        <label for="file-input">Choose file</label>
+        <input id="file-input" type="file" name="file" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Upload</button>
+    </form>
+    <p style="margin-top:1rem;margin-bottom:0"><a href="{{ url_for('files.create_text_form') }}">Create a new .txt file</a></p>
+  </section>
+  {% endif %}
+
+  <section class="card" aria-labelledby="owned-heading">
+    <h2 class="card__title" id="owned-heading">Your files</h2>
+    {% if owned_files %}
+    <ul class="file-list">
+      {% for f in owned_files %}
+        {{ file_item(f.name, f.meta, f.links, f.share_form, f.delete_form, f.public_toggle) }}
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty-state">No files uploaded yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="shared-heading">
+    <h2 class="card__title" id="shared-heading">Shared with you</h2>
+    {% if shared_files %}
+    <ul class="file-list">
+      {% for f in shared_files %}
+        {{ file_item(f.name, f.meta, f.links) }}
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty-state">No files have been shared with you.</p>
+    {% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="pub2-heading">
+    <h2 class="card__title" id="pub2-heading">Publicly shared files</h2>
+    {% if public_files %}
+    <ul class="file-list">
+      {% for f in public_files %}
+        {{ file_item(f.name, f.meta, f.links) }}
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty-state">No public files available.</p>
+    {% endif %}
+  </section>
+
+  {% if show_admin_section %}
+  <section class="card" aria-labelledby="admin-heading">
+    <h2 class="card__title" id="admin-heading">Alll files (admin only)</h2>
+    {% if all_files %}
+    <ul class="file-list">
+      {% for f in all_files %}
+        {{ file_item(f.name, f.meta, f.links) }}
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty-state">No files in the system.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,50 @@
+{% macro action_links(links) -%}
+  {% for link in links %}
+    <a href="{{ link.href }}" class="link-action">{{ link.label }}</a>
+    {%- if not loop.last %}<span class="link-sep">·</span>{% endif %}
+  {% endfor %}
+{%- endmacro %}
+
+{% macro file_item(name, meta, links, share_form=none, delete_form=none, public_toggle=none) %}
+<li class="file-item">
+  <div class="file-item__name">{{ name }}</div>
+  {% if meta %}
+  <div class="file-item__meta">{{ meta }}</div>
+  {% endif %}
+  {% if links %}
+  <div class="btn-row">{{ action_links(links) }}</div>
+  {% endif %}
+  {% if public_toggle %}
+  <div class="btn-row">
+    {% if public_toggle.is_public %}
+    <form method="post" action="{{ public_toggle.unpublic_action }}" style="display:inline">
+      <button type="submit" class="btn btn-ghost btn-sm" aria-label="Stop sharing this file publicly">Remove from public</button>
+    </form>
+    {% else %}
+    <form method="post" action="{{ public_toggle.make_public_action }}" style="display:inline">
+      <button type="submit" class="btn btn-primary btn-sm" aria-label="Share this file on the public list">Make public</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% if share_form %}
+  <div class="share-inline">
+    <form method="post" action="{{ share_form.action }}">
+      <input type="text" name="shared_with" placeholder="Username" required aria-label="Share with">
+      <select name="file_role" required aria-label="Permission">
+        <option value="viewer">Viewer</option>
+        <option value="editor">Editor</option>
+      </select>
+      <button type="submit" class="btn btn-primary btn-sm">Share</button>
+    </form>
+  </div>
+  {% endif %}
+  {% if delete_form %}
+  <div class="btn-row" style="margin-top:0.5rem">
+    <form method="post" action="{{ delete_form.action }}" onsubmit="return confirm('Delete this file?');">
+      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+    </form>
+  </div>
+  {% endif %}
+</li>
+{% endmacro %}

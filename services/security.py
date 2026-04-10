@@ -1,33 +1,23 @@
-import json
-import logging
 import os
+import secrets
+import string
 import time
 
 from email_validator import validate_email as ev_validate_email, EmailNotValidError
 
 from flask import has_request_context, request
 
-security_logger = logging.getLogger("security")
-security_logger.setLevel(logging.INFO)
-security_logger.propagate = False
+from services.storage import load_security_logs, save_security_logs
 
 
 def init_security_logging(app):
-    """Append security events to logs/security.log (plain text, one JSON object per line)."""
+    """Ensure security log storage exists for encrypted-at-rest events."""
     log_path = os.path.abspath(app.config["SECURITY_LOG_FILE"])
     parent = os.path.dirname(log_path)
     if parent:
         os.makedirs(parent, exist_ok=True)
-
-    for h in security_logger.handlers:
-        if isinstance(h, logging.FileHandler):
-            existing = getattr(h, "baseFilename", None)
-            if existing and os.path.abspath(existing) == log_path:
-                return
-
-    fh = logging.FileHandler(log_path, encoding="utf-8")
-    fh.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-    security_logger.addHandler(fh)
+    if not os.path.exists(log_path):
+        save_security_logs([])
 
 
 def validate_username(username):
@@ -84,4 +74,39 @@ def log_event(event_type, username=None, ip=None, details=None):
         "details": details,
         "ts": time.time(),
     }
-    security_logger.info("%s", json.dumps(payload, default=str, ensure_ascii=False))
+    logs = load_security_logs()
+    logs.append(payload)
+    save_security_logs(logs)
+
+
+def generate_secure_temp_password(length=16):
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    while True:
+        candidate = "".join(secrets.choice(alphabet) for _ in range(length))
+        has_upper = any(c.isupper() for c in candidate)
+        has_lower = any(c.islower() for c in candidate)
+        has_number = any(c.isdigit() for c in candidate)
+        has_special = any(c in "!@#$%^&*" for c in candidate)
+        if has_upper and has_lower and has_number and has_special:
+            return candidate
+
+
+def security_log_rows(logs):
+    """Newest-first rows for Jinja (values are escaped by the template)."""
+    if not logs:
+        return []
+    rows = []
+    for entry in reversed(logs):
+        ts = float(entry.get("ts", 0))
+        readable_ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)) if ts else "-"
+        rows.append(
+            {
+                "event": entry.get("event", "UNKNOWN"),
+                "user": entry.get("user") or "-",
+                "ip": entry.get("ip") or "-",
+                "details": entry.get("details") or "-",
+                "ua": entry.get("user_agent") or "-",
+                "ts": readable_ts,
+            }
+        )
+    return rows

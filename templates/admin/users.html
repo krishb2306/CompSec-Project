@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Admin · Users{% endblock %}
+{% block wrap_modifier %} app-wrap--wide{% endblock %}
+{% block topnav %}
+<nav class="topnav" aria-label="Main">
+  <div>
+    <a class="topnav__brand" href="{{ url_for('home.home') }}">{{ app_title|default('Secure Document Sharing') }}</a>
+    <p class="topnav__meta">Administrator tools</p>
+  </div>
+  <div class="topnav__actions">
+    <a href="{{ url_for('home.home') }}">← Back to app</a>
+  </div>
+</nav>
+{% endblock %}
+{% block content %}
+  <h1 class="page-title">Admin panel</h1>
+  <p class="lead">Manage regular user accounts, review active sessions, and inspect the security log.</p>
+
+  <section class="card" aria-labelledby="users-heading">
+    <h2 class="card__title" id="users-heading">Users</h2>
+    <p class="empty-state" style="margin-bottom:1rem">
+      Showing regular accounts only. <span class="mono">{{ admin_name }}</span> and <span class="mono">guest</span> are not listed.
+    </p>
+    {% if listed_users %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Email</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in listed_users %}
+        <tr>
+          <td><strong>{{ u.username }}</strong></td>
+          <td>{{ u.email }}</td>
+          <td>
+            {% if u.show_active_badge %}
+            <span class="badge badge-ok">Active</span>
+            {% else %}
+            <div class="status-badges">
+              {% if u.admin_locked %}
+              <span class="badge badge-lock" title="Login blocked by administrator">Admin lock</span>
+              {% endif %}
+              {% if u.lockout_active and u.lockout_until_label %}
+              <span class="badge badge-lockout" title="Too many failed login attempts">Password lockout · until {{ u.lockout_until_label }}</span>
+              {% endif %}
+            </div>
+            {% endif %}
+          </td>
+          <td>
+            <div class="actions">
+              <form method="post" action="{{ url_for('admin.reset_password', username=u.username) }}">
+                <button type="submit" class="btn btn-primary btn-sm">Reset password</button>
+              </form>
+              {% if u.lockout_active %}
+              <form method="post" action="{{ url_for('admin.unlock_password_lockout', username=u.username) }}">
+                <button type="submit" class="btn btn-primary btn-sm">Unlock lockout</button>
+              </form>
+              {% endif %}
+              {% if u.admin_locked %}
+              <form method="post" action="{{ url_for('admin.unlock_user', username=u.username) }}">
+                <button type="submit" class="btn btn-primary btn-sm">Unlock</button>
+              </form>
+              {% else %}
+              <form method="post" action="{{ url_for('admin.lock_user', username=u.username) }}">
+                <button type="submit" class="btn btn-ghost btn-sm">Lock</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No regular users to show. Admin and guest accounts are hidden from this list.</p>
+    {% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="sessions-heading">
+    <h2 class="card__title" id="sessions-heading">Active sessions</h2>
+    {% if sessions_rows %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th class="hide-sm">IP</th>
+          <th class="hide-sm">Session</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sessions_rows %}
+        <tr>
+          <td><strong>{{ s.username }}</strong></td>
+          <td class="mono hide-sm">{{ s.ip }}</td>
+          <td class="mono hide-sm">{{ s.token_preview }}</td>
+          <td>
+            <form method="post" action="{{ url_for('admin.force_close_session', session_token=s.token) }}">
+              <button type="submit" class="btn btn-danger btn-sm">Force close</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No active sessions.</p>
+    {% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="logs-heading">
+    <h2 class="card__title" id="logs-heading">Security log</h2>
+    {% if log_rows %}
+    <ul class="logs">
+      {% for e in log_rows %}
+      <li><b>{{ e.event }}</b> | user={{ e.user }} | ip={{ e.ip }} | details={{ e.details }} | ua={{ e.ua }} | ts={{ e.ts }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty-state">No security events found.</p>
+    {% endif %}
+  </section>
+{% endblock %}

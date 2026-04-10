@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}New text file · Secure Document Sharing{% endblock %}
+{% block topnav %}{% include "components/topnav.html" %}{% endblock %}
+{% block content %}
+  <h1 class="page-title">Create text file</h1>
+  <p class="lead">The name must end in <code class="inline-code">.txt</code> (added automatically if you omit it).</p>
+  <div class="card">
+    <form class="form-stack" method="post" action="{{ url_for('files.create_text') }}">
+      <div class="field">
+        <label for="filename">File name</label>
+        <input id="filename" name="filename" type="text" placeholder="notes.txt" required maxlength="200">
+      </div>
+      <div class="field">
+        <label for="content">Content (optional)</label>
+        <textarea id="content" name="content" rows="16" placeholder="Type your text here…"></textarea>
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary">Create</button>
+        <a class="btn btn-ghost" href="{{ url_for('home.home') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}
