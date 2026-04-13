@@ -1,6 +1,7 @@
 import time
-
+import re
 import bcrypt
+
 from flask import Blueprint, current_app, redirect, render_template, request, url_for
 
 from services.app_access import get_current_user, require_auth, require_role
@@ -17,8 +18,44 @@ from services.storage import (
     save_users,
 )
 from ui.pages import render_message_page
+from services.validation import sanitize_input, validate_length
 
 admin_bp = Blueprint("admin", __name__)
+
+
+def validate_and_sanitize_username(username):
+    """One-stop validation for username inputs - prevents XSS and injection"""
+    if not username:
+        raise ValueError("Username is required")
+    
+    username = sanitize_input(username)
+    try:
+        validate_length(username, min_len=3, max_len=20)
+    except ValueError:
+        raise ValueError("Username must be 3-20 characters")
+    
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        raise ValueError("Username can only contain letters, numbers, and underscores")
+    
+    return username
+
+
+def validate_and_sanitize_session_token(token):
+    """Validate session token to prevent injection"""
+    if not token:
+        raise ValueError("Session token is required")
+
+    token = sanitize_input(token)
+
+    try:
+        validate_length(token, min_len=10, max_len=200)
+    except ValueError:
+        raise ValueError("Invalid session token format")
+    
+    if not re.match(r'^[a-zA-Z0-9_\-]+$', token):
+        raise ValueError("Invalid session token characters")
+    
+    return token
 
 
 def _listed_users(users):
@@ -67,6 +104,9 @@ def admin_users():
 
     listed_users = []
     for user in listed:
+        sanitized_username = sanitize_input(user["username"])
+        sanitized_email = sanitize_input(user.get("email") or "—")
+        
         admin_locked = bool(user.get("locked_by_admin"))
         lockout = _password_lockout_active(user)
         lu = _lock_until_timestamp(user)
@@ -75,8 +115,8 @@ def admin_users():
         )
         listed_users.append(
             {
-                "username": user["username"],
-                "email": user.get("email") or "—",
+                "username": sanitized_username,
+                "email": sanitized_email,
                 "show_active_badge": not admin_locked and not lockout,
                 "admin_locked": admin_locked,
                 "lockout_active": lockout,
@@ -86,25 +126,33 @@ def admin_users():
 
     sessions_rows = []
     for token, metadata in sessions.items():
-        preview = token[:12] + "…" if len(token) > 12 else token
+        preview = sanitize_input(token[:12] + "…" if len(token) > 12 else token)
         sessions_rows.append(
             {
-                "username": metadata.get("username") or "—",
-                "ip": metadata.get("ip") or "—",
+                "username": sanitize_input(metadata.get("username") or "—"),
+                "ip": sanitize_input(metadata.get("ip") or "—"),
                 "token_preview": preview,
-                "token": token,
+                "token": token, 
             }
         )
-
     log_rows = security_log_rows(logs)
+    sanitized_logs = []
+    for log in log_rows:
+        sanitized_logs.append({
+            "timestamp": sanitize_input(log.get("timestamp", "")),
+            "event": sanitize_input(log.get("event", "")),
+            "user": sanitize_input(log.get("user", "")),
+            "ip": sanitize_input(log.get("ip", "")),
+            "details": sanitize_input(log.get("details", "")),
+        })
 
     return render_template(
         "admin/users.html",
         app_title="Secure Document Sharing",
-        admin_name=admin_name,
+        admin_name=sanitize_input(admin_name),
         listed_users=listed_users,
         sessions_rows=sessions_rows,
-        log_rows=log_rows,
+        log_rows=sanitized_logs,
     )
 
 
@@ -112,12 +160,20 @@ def admin_users():
 @require_auth
 @require_role("admin")
 def lock_user(username):
+    try:
+        username = validate_and_sanitize_username(username)
+    except ValueError as e:
+        href, label = _admin_back()
+        return render_message_page("Invalid input", str(e), back_href=href, back_label=label)
+    
     actor = get_current_user()["username"]
     users = load_users()
     target_user = next((u for u in users if u["username"] == username), None)
+    
     if not target_user:
         href, label = _admin_back()
         return render_message_page("User not found", "That user does not exist.", back_href=href, back_label=label)
+    
     if target_user["username"] == actor:
         href, label = _admin_back()
         return render_message_page(
@@ -137,9 +193,16 @@ def lock_user(username):
 @require_auth
 @require_role("admin")
 def unlock_user(username):
+    try:
+        username = validate_and_sanitize_username(username)
+    except ValueError as e:
+        href, label = _admin_back()
+        return render_message_page("Invalid input", str(e), back_href=href, back_label=label)
+    
     actor = get_current_user()["username"]
     users = load_users()
     target_user = next((u for u in users if u["username"] == username), None)
+    
     if not target_user:
         href, label = _admin_back()
         return render_message_page("User not found", "That user does not exist.", back_href=href, back_label=label)
@@ -154,12 +217,20 @@ def unlock_user(username):
 @require_auth
 @require_role("admin")
 def unlock_password_lockout(username):
+    try:
+        username = validate_and_sanitize_username(username)
+    except ValueError as e:
+        href, label = _admin_back()
+        return render_message_page("Invalid input", str(e), back_href=href, back_label=label)
+    
     actor = get_current_user()["username"]
     users = load_users()
     target_user = next((u for u in users if u["username"] == username), None)
+    
     if not target_user:
         href, label = _admin_back()
         return render_message_page("User not found", "That user does not exist.", back_href=href, back_label=label)
+    
     if not _password_lockout_active(target_user):
         return redirect(url_for("admin.admin_users"))
 
@@ -179,7 +250,14 @@ def unlock_password_lockout(username):
 @require_auth
 @require_role("admin")
 def force_close_session(session_token):
+    try:
+        session_token = validate_and_sanitize_session_token(session_token)
+    except ValueError as e:
+        href, label = _admin_back()
+        return render_message_page("Invalid input", str(e), back_href=href, back_label=label)
+    
     actor = get_current_user()["username"]
+    
     if not destroy_session_by_token(session_token, actor_username=actor, ip=request.remote_addr):
         href, label = _admin_back()
         return render_message_page(
@@ -195,9 +273,16 @@ def force_close_session(session_token):
 @require_auth
 @require_role("admin")
 def reset_password(username):
+    try:
+        username = validate_and_sanitize_username(username)
+    except ValueError as e:
+        href, label = _admin_back()
+        return render_message_page("Invalid input", str(e), back_href=href, back_label=label)
+    
     actor = get_current_user()["username"]
     users = load_users()
     target_user = next((u for u in users if u["username"] == username), None)
+    
     if not target_user:
         href, label = _admin_back()
         return render_message_page("User not found", "That user does not exist.", back_href=href, back_label=label)
@@ -210,11 +295,14 @@ def reset_password(username):
     target_user["locked_by_admin"] = False
     save_users(users)
     log_event("PASSWORD_RESET_BY_ADMIN", actor, request.remote_addr, details=username)
+    
+    sanitized_username = sanitize_input(username)
+    
     return render_template(
         "admin/temp_password.html",
         app_title="Secure Document Sharing",
-        username=username,
-        temp_password=temp_password,
+        username=sanitized_username,
+        temp_password=temp_password, 
     )
 
 
@@ -222,6 +310,11 @@ def reset_password(username):
 @require_auth
 @require_role("admin")
 def set_role_disabled(username):
+    try:
+        username = validate_and_sanitize_username(username)
+    except ValueError:
+        username = sanitize_input(username)
+    
     actor = get_current_user()["username"]
     log_event("ROLE_CHANGE_ATTEMPT_BLOCKED", actor, request.remote_addr, details=username)
     href, label = _admin_back()

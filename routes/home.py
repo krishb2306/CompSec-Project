@@ -4,6 +4,7 @@ from services.app_access import get_current_user
 from services.file_access import can_delete, can_edit, can_share, can_view, get_file_role_for_user
 from services.storage import load_files, load_shares
 
+from services.validation import sanitize_output
 
 home_bp = Blueprint("home", __name__)
 
@@ -36,8 +37,8 @@ def _file_action_links(file_record, file_role, current_user):
 def _public_file_entry(f, shares, current_user):
     file_role = get_file_role_for_user(f, shares, current_user)
     return {
-        "name": f["original_name"],
-        "meta": f"Shared publicly by {f['owner']}",
+        "name": sanitize_output(f["original_name"]),
+        "meta": sanitize_output(f"Shared publicly by {f['owner']}"),
         "links": _file_action_links(f, file_role, current_user),
     }
 
@@ -45,8 +46,8 @@ def _public_file_entry(f, shares, current_user):
 def _owned_file_entry(f, shares, current_user):
     file_role = get_file_role_for_user(f, shares, current_user)
     entry = {
-        "name": f["original_name"],
-        "meta": f"Your role on this file: {file_role}",
+        "name": sanitize_output(f["original_name"]),
+        "meta": sanitize_output(f"Your role on this file: {file_role}"),
         "links": _file_action_links(f, file_role, current_user),
     }
     if can_share(file_role):
@@ -66,8 +67,8 @@ def _owned_file_entry(f, shares, current_user):
 def _shared_file_entry(f, shares, current_user):
     file_role = get_file_role_for_user(f, shares, current_user)
     return {
-        "name": f["original_name"],
-        "meta": f"Shared by {f['owner']} · your role: {file_role}",
+        "name": sanitize_output(f["original_name"]),
+        "meta": sanitize_output(f"Shared by {f['owner']} · your role: {file_role}"),
         "links": _file_action_links(f, file_role, current_user),
     }
 
@@ -75,8 +76,8 @@ def _shared_file_entry(f, shares, current_user):
 def _admin_file_entry(f, shares, current_user):
     file_role = get_file_role_for_user(f, shares, current_user)
     return {
-        "name": f["original_name"],
-        "meta": f"Owner: {f['owner']} · your role: {file_role}",
+        "name": sanitize_output(f["original_name"]),
+        "meta": sanitize_output(f"Owner: {f['owner']} · your role: {file_role}"),
         "links": _file_action_links(f, file_role, current_user),
     }
 
@@ -106,7 +107,7 @@ def home():
     if not current_user:
         return render_template("home.html", **ctx)
 
-    username = current_user["username"]
+    username = sanitize_output(current_user["username"])
     ctx["current_user"] = {"username": username, "role": current_role}
     ctx["show_admin_link"] = current_role == "admin"
     ctx["show_admin_section"] = current_role == "admin"
