@@ -15,6 +15,9 @@ from services.storage import (
 )
 from ui.pages import nav_context, render_message_page
 
+from services.security import (
+    log_event,
+)
 from services.validation import sanitize_input, validate_length, safe_filename, safe_file_path
 
 
@@ -122,7 +125,12 @@ def edit_file_form(file_id):
 
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_edit(file_role):
-        return render_message_page("Access denied", "You cannot edit this file.")
+        log_event("AUTHORIZATION_FAILURE", 
+              current_user["username"] if current_user else None, 
+              request.remote_addr, 
+              details=f"Attempted to edit file {target_file['id']}")
+        return render_message_page("Access Denied", "You can not edit that file")
+
 
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
     try:
@@ -158,7 +166,11 @@ def edit_file(file_id):
 
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_edit(file_role):
-        return render_message_page("Access denied", "You cannot edit this file.")
+        log_event("AUTHORIZATION_FAILURE", 
+              current_user["username"] if current_user else None, 
+              request.remote_addr, 
+              details=f"Attempted to edit file {target_file['id']}")
+        return render_message_page("Access Denied", "You can not edit that file")
 
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
     new_content = request.form.get("content", "")
@@ -203,8 +215,11 @@ def share_file(file_id):
         return render_message_page("Not found", "That file does not exist.")
     current_file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_share(current_file_role):
+        log_event("AUTHORIZATION_FAILURE", 
+              current_user["username"] if current_user else None, 
+              request.remote_addr, 
+              details=f"Attempted to share file {target_file['id']}")
         return render_message_page("Share failed", "You can only share files you own.")
-
     for s in shares:
         if s.get("file_id") == file_id and s.get("shared_with") == shared_with:
             s["file_role"] = file_role
@@ -236,8 +251,11 @@ def make_public(file_id):
         return render_message_page("Not found", "That file does not exist.")
     current_file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_share(current_file_role):
+        log_event("AUTHORIZATION_FAILURE", 
+              current_user["username"] if current_user else None, 
+              request.remote_addr, 
+              details=f"Attempted to share file {target_file['id']}")
         return render_message_page("Access denied", "You can only change visibility for files you own.")
-
     for s in shares:
         if s.get("file_id") == file_id and s.get("shared_with") == "guest":
             s["file_role"] = "viewer"
@@ -269,8 +287,11 @@ def unmake_public(file_id):
         return render_message_page("Not found", "That file does not exist.")
     current_file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_share(current_file_role):
+        log_event("AUTHORIZATION_FAILURE", 
+              current_user["username"] if current_user else None, 
+              request.remote_addr, 
+              details=f"Attempted to share file {target_file['id']}")
         return render_message_page("Access denied", "You can only change visibility for files you own.")
-
     new_shares = [s for s in shares if not (s.get("file_id") == file_id and s.get("shared_with") == "guest")]
     if len(new_shares) != len(shares):
         save_shares(new_shares)
@@ -290,8 +311,11 @@ def delete_file(file_id):
         return render_message_page("Not found", "That file does not exist.")
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_delete(file_role):
+        log_event("AUTHORIZATION_FAILURE", 
+              current_user["username"] if current_user else None, 
+              request.remote_addr, 
+              details=f"Attempted to share file {target_file['id']}")
         return render_message_page("Access denied", "You cannot delete this file.")
-
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
     if os.path.exists(file_path):
         os.remove(file_path)
@@ -320,6 +344,10 @@ def download(stored_name):
 
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_view(file_role):
+        log_event("AUTHORIZATION_FAILURE", 
+              current_user["username"] if current_user else None, 
+              request.remote_addr, 
+              details=f"Attempted to download file {target_file['id']}")
         return render_message_page("Not found", "That file does not exist or you do not have access.")
 
     return send_from_directory(
@@ -342,6 +370,10 @@ def open_file(stored_name):
 
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_view(file_role):
+        log_event("AUTHORIZATION_FAILURE", 
+              current_user["username"] if current_user else None, 
+              request.remote_addr, 
+              details=f"Attempted to download file {target_file['id']}")
         return render_message_page("Not found", "That file does not exist or you do not have access.")
 
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
