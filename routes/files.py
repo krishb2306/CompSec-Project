@@ -15,6 +15,8 @@ from services.storage import (
 )
 from ui.pages import nav_context, render_message_page
 
+from services.validation import sanitize_input, validate_length, safe_filename, safe_file_path
+
 
 files_bp = Blueprint("files", __name__)
 
@@ -28,6 +30,11 @@ def upload():
     file = request.files["file"]
     if file.filename == "":
         return render_message_page("Upload", "No file selected.")
+
+    try:
+        safe_filename(file.filename)
+    except ValueError as e:
+        return render_message_page("Upload", f"Invalid filename: {str(e)}")
 
     file_id = str(uuid.uuid4())
     unique_name = f"{file_id}_{file.filename}"
@@ -170,6 +177,12 @@ def share_file(file_id):
     shared_with = request.form.get("shared_with", "").strip()
     file_role = request.form.get("file_role", "viewer").strip().lower()
 
+    try:
+        validate_length(shared_with, min_len=3, max_len=20)
+        shared_with = sanitize_input(shared_with)
+    except ValueError:
+        return render_message_page("Share failed", "Invalid username.")
+
     if not shared_with or shared_with.lower() == "guest":
         return render_message_page("Share failed", "Enter a username to share with.")
     if file_role not in {"viewer", "editor"}:
@@ -292,6 +305,11 @@ def delete_file(file_id):
 
 @files_bp.route("/download/<stored_name>")
 def download(stored_name):
+    try:
+        safe_file_path(stored_name, current_app.config["UPLOAD_FOLDER"])
+    except ValueError:
+        return render_message_page("Not found", "Invalid file name.")
+    
     files = load_files()
     shares = load_shares()
     current_user = get_current_user()

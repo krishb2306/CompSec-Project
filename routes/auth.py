@@ -17,6 +17,7 @@ from services.sessions import (
     destroy_logged_session,
 )
 from services.storage import load_users, save_users
+from services.validation import sanitize_input, validate_length 
 
 
 auth_bp = Blueprint("auth", __name__)
@@ -27,14 +28,22 @@ login_attempts = {}
 @auth_bp.route("/register", methods=["POST"])
 def register():
     ip = request.remote_addr
-    username = request.form.get("username", "").strip()
-    email = request.form.get("email", "").strip()
-    password = request.form.get("password", "").strip()
+    username = sanitize_input(request.form.get("username", "").strip())
+    email = sanitize_input(request.form.get("email", "").strip())
+    password = request.form.get("password", "").strip() # im leaving this unsanitized
     confirm = request.form.get("confirm_password", "").strip()
 
     if not username or not email or not password or not confirm:
         log_event("REGISTER_FAILED", username or None, ip, details="missing_fields")
         return render_message_page("Registration", "All fields are required.")
+    try:
+        validate_length(username, min_len=3, max_len=20)
+        validate_length(email, min_len=5, max_len=100)
+        validate_length(password, min_len=12, max_len=128)
+    except ValueError as e:
+        log_event("REGISTER_FAILED", username or None, ip, details="length_validation")
+        return render_message_page("Registration", str(e))
+    
     if not validate_username(username):
         log_event("REGISTER_FAILED", username, ip, details="invalid_username")
         return render_message_page(
@@ -87,6 +96,7 @@ def register():
 def login():
     ip = request.remote_addr
     current_time = time.time()
+    
     if ip not in login_attempts:
         login_attempts[ip] = []
 
@@ -99,9 +109,14 @@ def login():
         )
     login_attempts[ip].append(current_time)
 
-    username = request.form.get("username", "").strip()
+    username = sanitize_input(request.form.get("username", "").strip())
     password = request.form.get("password", "").strip()
+    
     log_event("LOGIN_ATTEMPT", username or None, ip)
+
+    if username and (len(username) < 1 or len(username) > 20):
+        log_event("LOGIN_FAILED", username, ip, details="invalid_username_format")
+        return render_message_page("Sign in failed", "Invalid username format.")
 
     users = load_users()
 
