@@ -1,10 +1,12 @@
 import os
 import uuid
+from io import BytesIO
 
-from flask import Blueprint, current_app, redirect, render_template, request, send_from_directory, url_for
+from flask import Blueprint, current_app, redirect, render_template, request, send_file, url_for
 from werkzeug.utils import secure_filename
 
 from services.app_access import get_current_user, require_auth, require_role
+from services.encryption import FileEncryptor
 from services.file_access import can_delete, can_edit, can_share, can_view, get_file_role_for_user
 from services.storage import (
     load_files,
@@ -22,6 +24,28 @@ from services.validation import sanitize_input, validate_length, safe_filename, 
 
 
 files_bp = Blueprint("files", __name__)
+file_encryptor = FileEncryptor()
+
+
+def _write_encrypted_file(file_path, data: bytes) -> None:
+    """Encrypt and persist raw bytes to the uploads folder."""
+    encrypted = file_encryptor.encrypt_bytes(data)
+    with open(file_path, "wb") as f:
+        f.write(encrypted)
+
+
+def _read_stored_file_bytes(file_path) -> bytes:
+    """Read encrypted bytes from disk and return plaintext.
+
+    Falls back to returning the raw bytes if decryption fails, so any
+    files that existed before encryption was enabled still work.
+    """
+    with open(file_path, "rb") as f:
+        data = f.read()
+    try:
+        return file_encryptor.decrypt_bytes(data)
+    except Exception:
+        return data
 
 
 @files_bp.route("/upload", methods=["POST"])
@@ -43,7 +67,7 @@ def upload():
     file_id = str(uuid.uuid4())
     unique_name = f"{file_id}_{file.filename}"
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], unique_name)
-    file.save(file_path)
+    _write_encrypted_file(file_path, file.read())
 
     files = load_files()
     files.append(
@@ -97,8 +121,7 @@ def create_text():
     file_id = str(uuid.uuid4())
     unique_name = f"{file_id}_{original_name}"
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], unique_name)
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
+    _write_encrypted_file(file_path, content.encode("utf-8"))
 
     files = load_files()
     files.append(
@@ -138,8 +161,7 @@ def edit_file_form(file_id):
 
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        content = _read_stored_file_bytes(file_path).decode("utf-8")
     except UnicodeDecodeError:
         return render_message_page(
             "Not a text file",
@@ -178,8 +200,7 @@ def edit_file(file_id):
 
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
     new_content = request.form.get("content", "")
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(new_content)
+    _write_encrypted_file(file_path, new_content.encode("utf-8"))
     log_event("DATA_UPDATE", current_user["username"], request.remote_addr, details=f"Edited file: {target_file['original_name']}")
     return redirect(url_for("home.home"))
 
@@ -358,10 +379,14 @@ def download(stored_name):
         return render_message_page("Not found", "That file does not exist or you do not have access.")
     
     log_event("DATA_READ", current_user["username"] if current_user else "guest", request.remote_addr, details=f"Downloaded file: {target_file['original_name']}")
-    
-    return send_from_directory(
-        current_app.config["UPLOAD_FOLDER"],
-        stored_name,
+
+    file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_name)
+    if not os.path.exists(file_path):
+        return render_message_page("Not found", "That file is missing on disk.")
+
+    plaintext = _read_stored_file_bytes(file_path)
+    return send_file(
+        BytesIO(plaintext),
         as_attachment=True,
         download_name=target_file["original_name"],
     )
@@ -390,9 +415,8 @@ def open_file(stored_name):
         return render_message_page("Not found", "That file is missing on disk.")
 
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        
+        content = _read_stored_file_bytes(file_path).decode("utf-8")
+
         log_event("DATA_READ", current_user["username"] if current_user else "guest", request.remote_addr, details=f"Opened file: {target_file['original_name']}")
 
         ctx = nav_context()
