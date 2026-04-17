@@ -55,6 +55,7 @@ def upload():
         }
     )
     save_files(files)
+    log_event("DATA_CREATE", get_current_user()["username"], request.remote_addr, details=f"Uploaded file: {file.filename}")
     return redirect(url_for("home.home"))
 
 
@@ -109,6 +110,8 @@ def create_text():
         }
     )
     save_files(files)
+    log_event("DATA_CREATE", get_current_user()["username"], request.remote_addr, details=f"Created text file: {original_name}")
+    
     return redirect(url_for("home.home"))
 
 
@@ -177,7 +180,7 @@ def edit_file(file_id):
     new_content = request.form.get("content", "")
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(new_content)
-
+    log_event("DATA_UPDATE", current_user["username"], request.remote_addr, details=f"Edited file: {target_file['original_name']}")
     return redirect(url_for("home.home"))
 
 
@@ -326,6 +329,8 @@ def delete_file(file_id):
     shares = [s for s in shares if s["file_id"] != file_id]
     save_files(files)
     save_shares(shares)
+    log_event("DATA_DELETE", current_user["username"], request.remote_addr, details=f"Deleted file: {target_file['original_name']}")
+
     return redirect(url_for("home.home"))
 
 
@@ -351,7 +356,9 @@ def download(stored_name):
               request.remote_addr, 
               details=f"Attempted to download file {target_file['id']}")
         return render_message_page("Not found", "That file does not exist or you do not have access.")
-
+    
+    log_event("DATA_READ", current_user["username"] if current_user else "guest", request.remote_addr, details=f"Downloaded file: {target_file['original_name']}")
+    
     return send_from_directory(
         current_app.config["UPLOAD_FOLDER"],
         stored_name,
@@ -385,6 +392,9 @@ def open_file(stored_name):
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
+        
+        log_event("DATA_READ", current_user["username"] if current_user else "guest", request.remote_addr, details=f"Opened file: {target_file['original_name']}")
+
         ctx = nav_context()
         ctx.update(
             original_name=target_file["original_name"],
