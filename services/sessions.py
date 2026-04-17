@@ -64,6 +64,13 @@ class SessionManager:
         if time.time() - last_f > self.timeout:
             del sessions[token]
             save_sessions(sessions)
+            ip_addr = rec.get("ip_address") or rec.get("ip")
+            log_event(
+                "SESSION_TIMEOUT",
+                user_id,
+                ip_addr,
+                details=f"idle_seconds={int(time.time() - last_f)}",
+            )
             return None
 
         now = time.time()
@@ -80,6 +87,42 @@ class SessionManager:
         if token in sessions:
             del sessions[token]
             save_sessions(sessions)
+
+    def purge_expired_sessions(self):
+        """Remove every session past idle timeout and log each removal."""
+        sessions = load_sessions()
+        if not sessions:
+            return 0
+
+        now = time.time()
+        expired_tokens = []
+        for token, rec in sessions.items():
+            last = rec.get("last_activity")
+            if last is None:
+                last = rec.get("created_at", 0)
+            try:
+                last_f = float(last)
+            except (TypeError, ValueError):
+                last_f = 0.0
+            if now - last_f > self.timeout:
+                expired_tokens.append((token, rec, last_f))
+
+        if not expired_tokens:
+            return 0
+
+        for token, rec, last_f in expired_tokens:
+            del sessions[token]
+            user_id = rec.get("user_id") or rec.get("username")
+            ip_addr = rec.get("ip_address") or rec.get("ip")
+            log_event(
+                "SESSION_TIMEOUT",
+                user_id,
+                ip_addr,
+                details=f"idle_seconds={int(now - last_f)}",
+            )
+
+        save_sessions(sessions)
+        return len(expired_tokens)
 
 
 def get_session_manager():
@@ -132,6 +175,11 @@ def clear_session_cookie(response):
     )
 
 
+def purge_expired_sessions():
+    """Convenience wrapper used by request hooks and admin views."""
+    return get_session_manager().purge_expired_sessions()
+
+
 def load_user_into_g():
     """
     Populate g.user_id, g.current_user, g.session_token from the session cookie.
@@ -145,11 +193,13 @@ def load_user_into_g():
     if not has_request_context():
         return
 
+    sm = get_session_manager()
+    sm.purge_expired_sessions()
+
     token = request.cookies.get(_cookie_name())
     if not token:
         return
 
-    sm = get_session_manager()
     data = sm.validate_session(token)
     if not data:
         g._clear_session_cookie = True

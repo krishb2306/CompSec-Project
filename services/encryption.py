@@ -1,6 +1,8 @@
-from cryptography.fernet import Fernet
 import json
 import os
+
+from cryptography.fernet import Fernet
+
 
 class EncryptedStorage:
     def __init__(self, key_file='data/secret.key'):
@@ -8,6 +10,9 @@ class EncryptedStorage:
             with open(key_file, 'rb') as f:
                 self.key = f.read()
         except FileNotFoundError:
+            key_dir = os.path.dirname(key_file)
+            if key_dir:
+                os.makedirs(key_dir, exist_ok=True)
             self.key = Fernet.generate_key()
             with open(key_file, 'wb') as f:
                 f.write(self.key)
@@ -30,3 +35,26 @@ class EncryptedStorage:
         except Exception as e:
             print(f"Warning: Could not load/decrypt {filename}: {e}")
             return []
+
+
+class FileEncryptor:
+    """Encrypt/decrypt raw file bytes for at-rest protection of uploads."""
+
+    def __init__(self, key_file="data/uploads.key"):
+        try:
+            with open(key_file, "rb") as f:
+                self.key = f.read()
+        except FileNotFoundError:
+            key_dir = os.path.dirname(key_file)
+            if key_dir:
+                os.makedirs(key_dir, exist_ok=True)
+            self.key = Fernet.generate_key()
+            with open(key_file, "wb") as f:
+                f.write(self.key)
+        self.cipher = Fernet(self.key)
+
+    def encrypt_bytes(self, data: bytes) -> bytes:
+        return self.cipher.encrypt(data)
+
+    def decrypt_bytes(self, data: bytes) -> bytes:
+        return self.cipher.decrypt(data)
