@@ -26,15 +26,18 @@ admin_bp = Blueprint("admin", __name__)
 def validate_and_sanitize_username(username):
     """One-stop validation for username inputs - prevents XSS and injection"""
     if not username:
+        log_event("INPUT_VALIDATION_FAILURE", None, request.remote_addr, details="Username required but empty")
         raise ValueError("Username is required")
     
     username = sanitize_input(username)
     try:
         validate_length(username, min_len=3, max_len=20)
     except ValueError:
+        log_event("INPUT_VALIDATION_FAILURE", username, request.remote_addr, details="Username length invalid")
         raise ValueError("Username must be 3-20 characters")
     
     if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        log_event("INPUT_VALIDATION_FAILURE", username, request.remote_addr, details="Username has invalid characters")
         raise ValueError("Username can only contain letters, numbers, and underscores")
     
     return username
@@ -43,6 +46,7 @@ def validate_and_sanitize_username(username):
 def validate_and_sanitize_session_token(token):
     """Validate session token to prevent injection"""
     if not token:
+        log_event("INPUT_VALIDATION_FAILURE", None, request.remote_addr, details="Session token required but is empty")
         raise ValueError("Session token is required")
 
     token = sanitize_input(token)
@@ -50,9 +54,11 @@ def validate_and_sanitize_session_token(token):
     try:
         validate_length(token, min_len=10, max_len=200)
     except ValueError:
+        log_event("INPUT_VALIDATION_FAILURE", None, request.remote_addr, details="Session token length invalid")
         raise ValueError("Invalid session token format")
     
     if not re.match(r'^[a-zA-Z0-9_\-]+$', token):
+        log_event("INPUT_VALIDATION_FAILURE", None, request.remote_addr, details="Session token contains invalid characters")
         raise ValueError("Invalid session token characters")
     
     return token
@@ -266,6 +272,8 @@ def force_close_session(session_token):
             back_href=href,
             back_label=label,
         )
+    log_event("FORCE_CLOSED_BY_ADMIN", actor, request.remote_addr, details={session_token})
+
     return redirect(url_for("admin.admin_users"))
 
 

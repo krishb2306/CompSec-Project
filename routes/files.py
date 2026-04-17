@@ -37,6 +37,7 @@ def upload():
     try:
         safe_filename(file.filename)
     except ValueError as e:
+        log_event("INPUT_VALIDATION_FAILURE", get_current_user()["username"], request.remote_addr, details="invalid filename")
         return render_message_page("Upload", f"Invalid filename: {str(e)}")
 
     file_id = str(uuid.uuid4())
@@ -193,6 +194,7 @@ def share_file(file_id):
         validate_length(shared_with, min_len=3, max_len=20)
         shared_with = sanitize_input(shared_with)
     except ValueError:
+        log_event("INPUT_VALIDATION_FAILURE", current_user["username"], request.remote_addr, details="invalid username")
         return render_message_page("Share failed", "Invalid username.")
 
     if not shared_with or shared_with.lower() == "guest":

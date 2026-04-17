@@ -34,42 +34,42 @@ def register():
     confirm = request.form.get("confirm_password", "").strip()
 
     if not username or not email or not password or not confirm:
-        log_event("REGISTER_FAILED", username or None, ip, details="missing_fields")
+        log_event("INPUT_VALIDATION_FAILURE", username or None, ip, details="missing_fields")
         return render_message_page("Registration", "All fields are required.")
     try:
         validate_length(username, min_len=3, max_len=20)
         validate_length(email, min_len=5, max_len=100)
         validate_length(password, min_len=12, max_len=128)
     except ValueError as e:
-        log_event("REGISTER_FAILED", username or None, ip, details="length_validation")
+        log_event("INPUT_VALIDATION_FAILURE", username or None, ip, details="length_validation")
         return render_message_page("Registration", str(e))
     
     if not validate_username(username):
-        log_event("REGISTER_FAILED", username, ip, details="invalid_username")
+        log_event("INPUT_VALIDATION_FAILURE", username, ip, details="invalid_username")
         return render_message_page(
             "Registration",
             "Invalid username. Use 3–20 characters: letters, numbers, and underscores only.",
         )
     if not validate_email(email):
-        log_event("REGISTER_FAILED", username, ip, details="invalid_email")
+        log_event("INPUT_VALIDATION_FAILURE", username, ip, details="invalid_email")
         return render_message_page("Registration", "Invalid email format.")
     if not validate_password(password):
-        log_event("REGISTER_FAILED", username, ip, details="invalid_password")
+        log_event("INPUT_VALIDATION_FAILURE", username, ip, details="invalid_password")
         return render_message_page(
             "Registration",
             "Password must be at least 12 characters and include upper, lower, number, and special (!@#$%^&*).",
         )
     if password != confirm:
-        log_event("REGISTER_FAILED", username, ip, details="password_mismatch")
+        log_event("INPUT_VALIDATION_FAILURE", username, ip, details="password_mismatch")
         return render_message_page("Registration", "Passwords do not match.")
 
     users = load_users()
     for user in users:
         if user["username"] == username:
-            log_event("REGISTER_FAILED", username, ip, details="duplicate_username")
+            log_event("INPUT_VALIDATION_FAILURE", username, ip, details="duplicate_username")
             return render_message_page("Registration", "That username is already taken.")
         if user.get("email") == email:
-            log_event("REGISTER_FAILED", username, ip, details="duplicate_email")
+            log_event("INPUT_VALIDATION_FAILURE", username, ip, details="duplicate_email")
             return render_message_page("Registration", "That email is already registered.")
 
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(12))
@@ -115,7 +115,7 @@ def login():
     log_event("LOGIN_ATTEMPT", username or None, ip)
 
     if username and (len(username) < 1 or len(username) > 20):
-        log_event("LOGIN_FAILED", username, ip, details="invalid_username_format")
+        log_event("INPUT_VALIDATION_FAILURE", username, ip, details="invalid_username_format")
         return render_message_page("Sign in failed", "Invalid username format.")
 
     users = load_users()
