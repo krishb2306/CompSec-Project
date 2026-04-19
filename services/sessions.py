@@ -40,15 +40,21 @@ class SessionManager:
     def validate_session(self, token):
         """Return session dict if valid; enforce idle timeout and refresh last_activity."""
         if not token:
+            if has_request_context():
+                log_event("SUSPICIOUS_ACTIVITY", None, request.remote_addr, details="Empty session token")
             return None
 
         sessions = load_sessions()
         if token not in sessions:
+            if has_request_context():
+                log_event("SUSPICIOUS_ACTIVITY", None, request.remote_addr, details="Invalid session token used")
             return None
 
         rec = sessions[token]
         user_id = rec.get("user_id") or rec.get("username")
         if not user_id:
+            if has_request_context():
+                log_event("SUSPICIOUS_ACTIVITY", None, request.remote_addr, details="Malformed session token:")
             del sessions[token]
             save_sessions(sessions)
             return None
@@ -65,12 +71,8 @@ class SessionManager:
             del sessions[token]
             save_sessions(sessions)
             ip_addr = rec.get("ip_address") or rec.get("ip")
-            log_event(
-                "SESSION_TIMEOUT",
-                user_id,
-                ip_addr,
-                details=f"idle_seconds={int(time.time() - last_f)}",
-            )
+            log_event("SUSPICIOUS_ACTIVITY", user_id, ip_addr,details=f"Expired session token used (idle for {int(time.time() - last_f)} seconds)")
+            log_event("SESSION_TIMEOUT",user_id,ip_addr,details=f"idle_seconds={int(time.time() - last_f)}")
             return None
 
         now = time.time()

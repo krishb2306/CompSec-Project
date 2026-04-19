@@ -86,6 +86,7 @@ def register():
     users.append(new_user)
     save_users(users)
     token = create_logged_session(username, ip)
+    log_event("DATA_CREATE", username, ip, details="New user registered")
     log_event("REGISTER_SUCCESS", username, ip)
     resp = make_response(redirect(url_for("home.home")))
     attach_session_cookie(resp, token)
@@ -102,7 +103,7 @@ def login():
 
     login_attempts[ip] = [t for t in login_attempts[ip] if current_time - t < 60]
     if len(login_attempts[ip]) >= 10:
-        log_event("RATE_LIMIT", None, ip, details="login_attempts_per_ip")
+        log_event("SUSPICIOUS_ACTIVITY", None, ip, details="Rate limit exceeded - too many login attempts from IP")
         return render_message_page(
             "Too many attempts",
             "Too many login attempts from this network. Please wait a minute and try again.",

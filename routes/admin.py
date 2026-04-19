@@ -10,7 +10,7 @@ from services.security import (
     log_event,
     security_log_rows,
 )
-from services.sessions import destroy_session_by_token, purge_expired_sessions
+from services.sessions import destroy_session_by_token
 from services.storage import (
     load_security_logs,
     load_sessions,
@@ -102,7 +102,6 @@ def _admin_back():
 @require_auth
 @require_role("admin")
 def admin_users():
-    purge_expired_sessions()
     users = load_users()
     listed = _listed_users(users)
     sessions = load_sessions()
@@ -273,7 +272,7 @@ def force_close_session(session_token):
             back_href=href,
             back_label=label,
         )
-    log_event("FORCE_CLOSED_BY_ADMIN", actor, request.remote_addr, details=f"token={session_token}")
+    log_event("FORCE_CLOSED_BY_ADMIN", actor, request.remote_addr, details={session_token})
 
     return redirect(url_for("admin.admin_users"))
 
