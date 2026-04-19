@@ -70,8 +70,8 @@ def log_event(event_type, username=None, ip=None, details=None):
         "event": event_type,
         "user": username,
         "ip": ip_addr,
-        "user_agent": user_agent,
         "details": details,
+        "user_agent": user_agent,
         "ts": time.time(),
     }
     logs = load_security_logs()
