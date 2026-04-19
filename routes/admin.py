@@ -10,7 +10,10 @@ from services.security import (
     log_event,
     security_log_rows,
 )
-from services.sessions import destroy_session_by_token
+from services.sessions import (
+    destroy_all_sessions_for_username,
+    destroy_session_by_token,
+)
 from services.storage import (
     load_security_logs,
     load_sessions,
@@ -76,6 +79,17 @@ def _listed_users(users):
     return out
 
 
+def _can_admin_adjust_app_role(target_user):
+    """Not the synthetic public guest account and not an admin account."""
+    if not target_user:
+        return False
+    if target_user.get("username") == "guest":
+        return False
+    if target_user.get("role") == "admin":
+        return False
+    return True
+
+
 def _lock_until_timestamp(user):
     lock_until = user.get("locked_until")
     if lock_until is None:
@@ -119,6 +133,8 @@ def admin_users():
         until_label = (
             time.strftime("%Y-%m-%d %H:%M", time.localtime(lu)) if lockout and lu is not None else ""
         )
+        app_role = user.get("role") or "user"
+        is_demoted_guest = app_role == "guest"
         listed_users.append(
             {
                 "username": sanitized_username,
@@ -127,6 +143,8 @@ def admin_users():
                 "admin_locked": admin_locked,
                 "lockout_active": lockout,
                 "lockout_until_label": until_label,
+                "app_role": app_role,
+                "is_demoted_guest": is_demoted_guest,
             }
         )
 
@@ -315,21 +333,74 @@ def reset_password(username):
     )
 
 
-@admin_bp.route("/admin/set-role/<username>", methods=["POST"])
+@admin_bp.route("/admin/demote-to-guest/<username>", methods=["POST"])
 @require_auth
 @require_role("admin")
-def set_role_disabled(username):
+def demote_to_guest(username):
     try:
         username = validate_and_sanitize_username(username)
-    except ValueError:
-        username = sanitize_input(username)
-    
+    except ValueError as e:
+        href, label = _admin_back()
+        return render_message_page("Invalid input", str(e), back_href=href, back_label=label)
+
     actor = get_current_user()["username"]
-    log_event("ROLE_CHANGE_ATTEMPT_BLOCKED", actor, request.remote_addr, details=username)
-    href, label = _admin_back()
-    return render_message_page(
-        "Role changes disabled",
-        "Changing user roles through this panel is not allowed.",
-        back_href=href,
-        back_label=label,
-    )
+    users = load_users()
+    target_user = next((u for u in users if u["username"] == username), None)
+
+    if not target_user:
+        href, label = _admin_back()
+        return render_message_page("User not found", "That user does not exist.", back_href=href, back_label=label)
+
+    if not _can_admin_adjust_app_role(target_user):
+        href, label = _admin_back()
+        return render_message_page(
+            "Cannot change role",
+            "This account cannot be demoted.",
+            back_href=href,
+            back_label=label,
+        )
+
+    if target_user.get("role", "user") != "user":
+        return redirect(url_for("admin.admin_users"))
+
+    target_user["role"] = "guest"
+    save_users(users)
+    destroy_all_sessions_for_username(username, actor_username=actor, ip=request.remote_addr)
+    log_event("USER_DEMOTED_TO_GUEST", actor, request.remote_addr, details=username)
+    return redirect(url_for("admin.admin_users"))
+
+
+@admin_bp.route("/admin/promote-to-user/<username>", methods=["POST"])
+@require_auth
+@require_role("admin")
+def promote_to_user(username):
+    try:
+        username = validate_and_sanitize_username(username)
+    except ValueError as e:
+        href, label = _admin_back()
+        return render_message_page("Invalid input", str(e), back_href=href, back_label=label)
+
+    actor = get_current_user()["username"]
+    users = load_users()
+    target_user = next((u for u in users if u["username"] == username), None)
+
+    if not target_user:
+        href, label = _admin_back()
+        return render_message_page("User not found", "That user does not exist.", back_href=href, back_label=label)
+
+    if not _can_admin_adjust_app_role(target_user):
+        href, label = _admin_back()
+        return render_message_page(
+            "Cannot change role",
+            "This account cannot be promoted.",
+            back_href=href,
+            back_label=label,
+        )
+
+    if target_user.get("role") != "guest":
+        return redirect(url_for("admin.admin_users"))
+
+    target_user["role"] = "user"
+    save_users(users)
+    log_event("USER_PROMOTED_TO_USER", actor, request.remote_addr, details=username)
+    return redirect(url_for("admin.admin_users"))
