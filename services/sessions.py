@@ -268,3 +268,23 @@ def destroy_session_by_token(session_token, actor_username=None, ip=None):
         details=f"terminated_user={terminated}",
     )
     return True
+
+
+def destroy_all_sessions_for_username(username, actor_username=None, ip=None):
+    """Remove every active server session for the given username (e.g. after demotion)."""
+    sessions = load_sessions()
+    removed = []
+    for token, meta in list(sessions.items()):
+        uid = meta.get("user_id") or meta.get("username")
+        if uid == username:
+            del sessions[token]
+            removed.append(token)
+    if removed:
+        save_sessions(sessions)
+        log_event(
+            "SESSIONS_CLEARED_FOR_USER",
+            actor_username,
+            ip,
+            details=f"target={username},count={len(removed)}",
+        )
+    return len(removed)
