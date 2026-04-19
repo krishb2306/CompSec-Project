@@ -145,11 +145,12 @@ def admin_users():
     sanitized_logs = []
     for log in log_rows:
         sanitized_logs.append({
-            "timestamp": sanitize_input(log.get("timestamp", "")),
             "event": sanitize_input(log.get("event", "")),
             "user": sanitize_input(log.get("user", "")),
             "ip": sanitize_input(log.get("ip", "")),
             "details": sanitize_input(log.get("details", "")),
+            "ua": sanitize_input(log.get("ua", "")),
+            "ts": sanitize_input(log.get("ts", "")),
         })
 
     return render_template(
@@ -272,7 +273,7 @@ def force_close_session(session_token):
             back_href=href,
             back_label=label,
         )
-    log_event("FORCE_CLOSED_BY_ADMIN", actor, request.remote_addr, details={session_token})
+    log_event("FORCE_CLOSED_BY_ADMIN", actor, request.remote_addr, details=session_token)
 
     return redirect(url_for("admin.admin_users"))
 
