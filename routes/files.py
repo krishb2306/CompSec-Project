@@ -20,6 +20,7 @@ from ui.pages import nav_context, render_message_page
 from services.security import (
     log_event,
 )
+from services.upload_validation import MalwareDetectedError, read_upload_limited, validate_upload
 from services.validation import sanitize_input, validate_length, safe_filename, safe_file_path
 
 
@@ -59,27 +60,50 @@ def upload():
         return render_message_page("Upload", "No file selected.")
 
     try:
-        safe_filename(file.filename)
+        basename = safe_filename(file.filename)
     except ValueError as e:
         log_event("INPUT_VALIDATION_FAILURE", get_current_user()["username"], request.remote_addr, details="invalid filename")
         return render_message_page("Upload", f"Invalid filename: {str(e)}")
 
+    try:
+        data = read_upload_limited(file.stream, current_app.config["MAX_UPLOAD_SIZE_BYTES"])
+        validate_upload(basename, data)
+    except MalwareDetectedError:
+        log_event(
+            "MALWARE_BLOCKED",
+            get_current_user()["username"],
+            request.remote_addr,
+            details=f"Upload rejected: {basename}",
+        )
+        return render_message_page(
+            "Upload",
+            "This file was blocked after a malware scan.",
+        )
+    except ValueError as e:
+        log_event(
+            "FILE_UPLOAD_REJECTED",
+            get_current_user()["username"],
+            request.remote_addr,
+            details=f"{basename}: {str(e)}",
+        )
+        return render_message_page("Upload", str(e))
+
     file_id = str(uuid.uuid4())
-    unique_name = f"{file_id}_{file.filename}"
+    unique_name = f"{file_id}_{basename}"
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], unique_name)
-    _write_encrypted_file(file_path, file.read())
+    _write_encrypted_file(file_path, data)
 
     files = load_files()
     files.append(
         {
             "id": file_id,
             "owner": get_current_user()["username"],
-            "original_name": file.filename,
+            "original_name": basename,
             "stored_name": unique_name,
         }
     )
     save_files(files)
-    log_event("DATA_CREATE", get_current_user()["username"], request.remote_addr, details=f"Uploaded file: {file.filename}")
+    log_event("DATA_CREATE", get_current_user()["username"], request.remote_addr, details=f"Uploaded file: {basename}")
     return redirect(url_for("home.home"))
 
 
