@@ -1,4 +1,4 @@
-from flask import Flask, g, redirect, request
+from flask import Flask, g, redirect, request, make_response
 
 from config import Config
 from routes.admin import admin_bp
@@ -15,6 +15,40 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
     init_security_logging(app)
+
+    @app.after_request
+    def add_security_headers(response):
+    # Content Security Policy
+        response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+        )
+    
+    # Prevent clickjacking
+        response.headers['X-Frame-Options'] = 'DENY'
+    
+    # Prevent MIME type sniffing
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+    
+    # XSS Protection (legacy browsers)
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+    
+    # Referrer Policy
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    
+    # HSTS (HTTPS only)
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        response.headers['Permissions-Policy'] = ('geolocation=(), microphone=(), camera=()')
+    # Hide server information
+        response.headers.pop('Server', None)
+        response.headers.pop('server', None)
+        
+        return response
 
     @app.before_request
     def require_https():
@@ -54,5 +88,5 @@ if __name__ == "__main__":
         ssl_context=("cert.pem", "key.pem"),
         host="0.0.0.0",
         port=5001,
-        debug=True,
+        debug=False,
     )
