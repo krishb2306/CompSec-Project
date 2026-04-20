@@ -431,7 +431,7 @@ def open_file(stored_name):
         log_event("AUTHORIZATION_FAILURE", 
               current_user["username"] if current_user else None, 
               request.remote_addr, 
-              details=f"Attempted to download file {target_file['id']}")
+              details=f"Attempted to open file {target_file['id']}")
         return render_message_page("Not found", "That file does not exist or you do not have access.")
 
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])

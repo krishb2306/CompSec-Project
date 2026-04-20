@@ -52,6 +52,8 @@ def ensure_admin_user():
         if u["username"] == username:
             if "locked_by_admin" not in u:
                 u["locked_by_admin"] = False
+            if "password_reset_requested" not in u:
+                u["password_reset_requested"] = False
             if u.get("role") != "admin":
                 u["role"] = "admin"
             save_users(users)
@@ -67,6 +69,7 @@ def ensure_admin_user():
             "failed_attempts": 0,
             "locked_until": None,
             "locked_by_admin": False,
+            "password_reset_requested": False,
             "created_at": time.time(),
         }
     )

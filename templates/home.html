@@ -61,6 +61,21 @@
         </div>
         <button type="submit" class="btn btn-primary">Log in</button>
       </form>
+      <div class="share-inline">
+        <h3 class="section-title" style="font-size:0.95rem;margin-bottom:0.6rem">Forgot password?</h3>
+        <p class="empty-state" style="margin-bottom:0.8rem">Enter your username and the same email used at registration to alert admin for a reset.</p>
+        <form class="form-stack" method="post" action="{{ url_for('auth.forgot_password') }}">
+          <div class="field">
+            <label for="forgot-user">Username</label>
+            <input id="forgot-user" name="username" type="text" autocomplete="username" required maxlength="20">
+          </div>
+          <div class="field">
+            <label for="forgot-email">Email</label>
+            <input id="forgot-email" name="email" type="email" autocomplete="email" required>
+          </div>
+          <button type="submit" class="btn btn-ghost">Send reset alert</button>
+        </form>
+      </div>
     </section>
   </div>
 

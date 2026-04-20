@@ -7,7 +7,7 @@ from email_validator import validate_email as ev_validate_email, EmailNotValidEr
 
 from flask import has_request_context, request
 
-from services.storage import load_security_logs, save_security_logs
+from services.storage import load_security_logs, save_security_logs, storage
 
 
 def init_security_logging(app):
@@ -17,7 +17,8 @@ def init_security_logging(app):
     if parent:
         os.makedirs(parent, exist_ok=True)
     if not os.path.exists(log_path):
-        save_security_logs([])
+        # Startup may run before an application context exists.
+        storage.save_encrypted(log_path, [])
 
 
 def validate_username(username):

@@ -424,6 +424,11 @@ table.data-table {
   color: var(--danger);
 }
 
+.badge-reset-request {
+  background: var(--accent-muted);
+  color: var(--accent-hover);
+}
+
 .status-badges {
   display: flex;
   flex-wrap: wrap;

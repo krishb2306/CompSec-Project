@@ -133,6 +133,7 @@ def admin_users():
         until_label = (
             time.strftime("%Y-%m-%d %H:%M", time.localtime(lu)) if lockout and lu is not None else ""
         )
+        password_reset_requested = bool(user.get("password_reset_requested", False))
         app_role = user.get("role") or "user"
         is_demoted_guest = app_role == "guest"
         listed_users.append(
@@ -143,6 +144,7 @@ def admin_users():
                 "admin_locked": admin_locked,
                 "lockout_active": lockout,
                 "lockout_until_label": until_label,
+                "password_reset_requested": password_reset_requested,
                 "app_role": app_role,
                 "is_demoted_guest": is_demoted_guest,
             }
@@ -317,9 +319,8 @@ def reset_password(username):
     temp_password = generate_secure_temp_password()
     hashed = bcrypt.hashpw(temp_password.encode("utf-8"), bcrypt.gensalt(12))
     target_user["password"] = hashed.decode("utf-8")
-    target_user["failed_attempts"] = 0
-    target_user["locked_until"] = None
     target_user["locked_by_admin"] = False
+    target_user["password_reset_requested"] = False
     save_users(users)
     log_event("PASSWORD_RESET_BY_ADMIN", actor, request.remote_addr, details=username)
     

@@ -8,6 +8,7 @@
   </div>
   <div class="topnav__actions">
     {% if current_user %}
+      <a href="{{ url_for('auth.password_settings') }}">Password settings</a>
       {% if show_admin_link %}
       <a href="{{ url_for('admin.admin_users') }}">Admin panel</a>
       {% endif %}

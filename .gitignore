@@ -64,3 +64,8 @@ temp/
 # Keys
 *.pem
 *.key
+
+# Data and Logs
+data/
+logs/
+uploads/

@@ -45,18 +45,21 @@
             {% endif %}
           </td>
           <td>
-            {% if u.show_active_badge %}
-            <span class="badge badge-ok">Active</span>
-            {% else %}
             <div class="status-badges">
+              {% if u.password_reset_requested %}
+              <span class="badge badge-reset-request" title="User asked admin for a password reset">Reset requested</span>
+              {% endif %}
+              {% if u.show_active_badge %}
+              <span class="badge badge-ok">Active</span>
+              {% else %}
               {% if u.admin_locked %}
               <span class="badge badge-lock" title="Login blocked by administrator">Admin lock</span>
               {% endif %}
               {% if u.lockout_active and u.lockout_until_label %}
               <span class="badge badge-lockout" title="Too many failed login attempts">Password lockout · until {{ u.lockout_until_label }}</span>
               {% endif %}
+              {% endif %}
             </div>
-            {% endif %}
           </td>
           <td>
             <div class="actions">
