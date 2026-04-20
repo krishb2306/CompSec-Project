@@ -13,6 +13,7 @@ def get_current_user():
     return getattr(g, "current_user", None)
 
 
+# Supplementary RBAC logic (not really needed bc require_role kinda takes care of this, but just to be explicit)
 def require_auth(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -23,6 +24,7 @@ def require_auth(f):
     return decorated_function
 
 
+# Main RBAC logic
 def require_role(min_role):
     def decorator(f):
         @wraps(f)
@@ -41,6 +43,7 @@ def require_role(min_role):
     return decorator
 
 
+# Automatically creates an admin user if one doesn't exist on app startup
 def ensure_admin_user():
     """Ensure one admin account exists (override credentials via env in production)."""
     username = current_app.config["ADMIN_USERNAME"]
@@ -76,6 +79,7 @@ def ensure_admin_user():
     save_users(users)
 
 
+# Automatically creates a guest user if one doesn't exist on app startup (guest is treated as the public)
 def ensure_guest_user():
     users = load_users()
     guest_exists = any(u["username"] == "guest" for u in users)

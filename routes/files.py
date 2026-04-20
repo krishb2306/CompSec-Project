@@ -59,12 +59,14 @@ def upload():
     if file.filename == "":
         return render_message_page("Upload", "No file selected.")
 
+    # Filename needs to be safe
     try:
         basename = safe_filename(file.filename)
     except ValueError as e:
         log_event("INPUT_VALIDATION_FAILURE", get_current_user()["username"], request.remote_addr, details="invalid filename")
         return render_message_page("Upload", f"Invalid filename: {str(e)}")
 
+    # Size check + potential malware scan + format validation
     try:
         data = read_upload_limited(file.stream, current_app.config["MAX_UPLOAD_SIZE_BYTES"])
         validate_upload(basename, data)
@@ -88,10 +90,11 @@ def upload():
         )
         return render_message_page("Upload", str(e))
 
+    # File passed checks
     file_id = str(uuid.uuid4())
     unique_name = f"{file_id}_{basename}"
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], unique_name)
-    _write_encrypted_file(file_path, data)
+    _write_encrypted_file(file_path, data) # Data encrypted by app
 
     files = load_files()
     files.append(
@@ -132,7 +135,7 @@ def create_text_form():
 @require_role("user")
 def create_text():
     raw = request.form.get("filename", "")
-    content = request.form.get("content", "")
+    content = request.form.get("content", "") # We can safely do this because the template auto escapes content + download doesn't render anything.
     original_name = _normalize_txt_filename(raw)
     if not original_name:
         return render_message_page(
@@ -142,6 +145,55 @@ def create_text():
             back_label="Try again",
         )
 
+    data = content.encode("utf-8")
+
+    # Size check
+    max_bytes = current_app.config["MAX_UPLOAD_SIZE_BYTES"]
+    if len(data) > max_bytes:
+        log_event(
+            "FILE_UPLOAD_REJECTED",
+            get_current_user()["username"],
+            request.remote_addr,
+            details=f"{original_name}: content too large",
+        )
+        return render_message_page(
+            "Too large",
+            f"File too large (max {max_bytes // (1024 * 1024)} MB).",
+            back_href=url_for("files.create_text_form"),
+            back_label="Try again",
+        )
+
+    # Potential malware scan + format validation
+    try:
+        validate_upload(original_name, data)
+    except MalwareDetectedError:
+        log_event(
+            "MALWARE_BLOCKED",
+            get_current_user()["username"],
+            request.remote_addr,
+            details=f"Create-text rejected: {original_name}",
+        )
+        return render_message_page(
+            "Create text",
+            "This file was blocked after a malware scan.",
+            back_href=url_for("files.create_text_form"),
+            back_label="Try again",
+        )
+    except ValueError as e:
+        log_event(
+            "FILE_UPLOAD_REJECTED",
+            get_current_user()["username"],
+            request.remote_addr,
+            details=f"{original_name}: {str(e)}",
+        )
+        return render_message_page(
+            "Create text",
+            str(e),
+            back_href=url_for("files.create_text_form"),
+            back_label="Try again",
+        )
+
+    # File passed checks
     file_id = str(uuid.uuid4())
     unique_name = f"{file_id}_{original_name}"
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], unique_name)
@@ -174,6 +226,7 @@ def edit_file_form(file_id):
     if not target_file:
         return render_message_page("Not found", "That file does not exist.")
 
+    # RBAC
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_edit(file_role):
         log_event("AUTHORIZATION_FAILURE", 
@@ -214,6 +267,7 @@ def edit_file(file_id):
     if not target_file:
         return render_message_page("Not found", "That file does not exist.")
 
+    # RBAC
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_edit(file_role):
         log_event("AUTHORIZATION_FAILURE", 
@@ -222,6 +276,7 @@ def edit_file(file_id):
               details=f"Attempted to edit file {target_file['id']}")
         return render_message_page("Access Denied", "You can not edit that file")
 
+    # Write new content
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
     new_content = request.form.get("content", "")
     _write_encrypted_file(file_path, new_content.encode("utf-8"))
@@ -238,13 +293,15 @@ def share_file(file_id):
     shared_with = request.form.get("shared_with", "").strip()
     file_role = request.form.get("file_role", "viewer").strip().lower()
 
+    # Validate username 
     try:
-        validate_length(shared_with, min_len=3, max_len=20)
         shared_with = sanitize_input(shared_with)
+        validate_username(shared_with)
     except ValueError:
         log_event("INPUT_VALIDATION_FAILURE", current_user["username"], request.remote_addr, details="invalid username")
         return render_message_page("Share failed", "Invalid username.")
 
+    # Fields should be filled with valid values
     if not shared_with or shared_with.lower() == "guest":
         return render_message_page("Share failed", "Enter a username to share with.")
     if file_role not in {"viewer", "editor"}:
@@ -254,6 +311,7 @@ def share_file(file_id):
     files = load_files()
     shares = load_shares()
 
+    # Can't share with non-existent user or yourself
     user_exists = any(u["username"] == shared_with for u in users)
     if not user_exists:
         return render_message_page("Share failed", "That user does not exist.")
@@ -263,6 +321,8 @@ def share_file(file_id):
     target_file = next((f for f in files if f["id"] == file_id), None)
     if not target_file:
         return render_message_page("Not found", "That file does not exist.")
+
+    # RBAC
     current_file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_share(current_file_role):
         log_event("AUTHORIZATION_FAILURE", 
@@ -270,12 +330,15 @@ def share_file(file_id):
               request.remote_addr, 
               details=f"Attempted to share file {target_file['id']}")
         return render_message_page("Share failed", "You can only share files you own.")
+
+    # If already shared with user, update role
     for s in shares:
         if s.get("file_id") == file_id and s.get("shared_with") == shared_with:
             s["file_role"] = file_role
             save_shares(shares)
             return redirect(url_for("home.home"))
 
+    # Add new share entry
     shares.append(
         {
             "file_id": file_id,
@@ -299,6 +362,8 @@ def make_public(file_id):
     target_file = next((f for f in files if f["id"] == file_id), None)
     if not target_file:
         return render_message_page("Not found", "That file does not exist.")
+
+    # RBAC
     current_file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_share(current_file_role):
         log_event("AUTHORIZATION_FAILURE", 
@@ -306,12 +371,15 @@ def make_public(file_id):
               request.remote_addr, 
               details=f"Attempted to share file {target_file['id']}")
         return render_message_page("Access denied", "You can only change visibility for files you own.")
+    
+    # Enforce that public sharing is only viewable
     for s in shares:
         if s.get("file_id") == file_id and s.get("shared_with") == "guest":
             s["file_role"] = "viewer"
             save_shares(shares)
             return redirect(url_for("home.home"))
 
+    # Public visibility = share with "guest"
     shares.append(
         {
             "file_id": file_id,
@@ -336,12 +404,16 @@ def unmake_public(file_id):
     if not target_file:
         return render_message_page("Not found", "That file does not exist.")
     current_file_role = get_file_role_for_user(target_file, shares, current_user)
+
+    # RBAC
     if not can_share(current_file_role):
         log_event("AUTHORIZATION_FAILURE", 
               current_user["username"] if current_user else None, 
               request.remote_addr, 
               details=f"Attempted to share file {target_file['id']}")
         return render_message_page("Access denied", "You can only change visibility for files you own.")
+    
+    # Remove public share entry
     new_shares = [s for s in shares if not (s.get("file_id") == file_id and s.get("shared_with") == "guest")]
     if len(new_shares) != len(shares):
         save_shares(new_shares)
@@ -359,6 +431,8 @@ def delete_file(file_id):
     target_file = next((f for f in files if f["id"] == file_id), None)
     if not target_file:
         return render_message_page("Not found", "That file does not exist.")
+    
+    # RBAC
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_delete(file_role):
         log_event("AUTHORIZATION_FAILURE", 
@@ -366,10 +440,13 @@ def delete_file(file_id):
               request.remote_addr, 
               details=f"Attempted to share file {target_file['id']}")
         return render_message_page("Access denied", "You cannot delete this file.")
+    
+    # Delete file from storage
     file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], target_file["stored_name"])
     if os.path.exists(file_path):
         os.remove(file_path)
 
+    # Remove file from files and shares to prevent trying to access it after deletion
     files = [f for f in files if f["id"] != file_id]
     shares = [s for s in shares if s["file_id"] != file_id]
     save_files(files)
@@ -394,6 +471,7 @@ def download(stored_name):
     if not target_file:
         return render_message_page("Not found", "That file does not exist or you do not have access.")
 
+    # RBAC
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_view(file_role):
         log_event("AUTHORIZATION_FAILURE", 
@@ -408,6 +486,7 @@ def download(stored_name):
     if not os.path.exists(file_path):
         return render_message_page("Not found", "That file is missing on disk.")
 
+    # No XSS here because we're sending the file as an attachment
     plaintext = _read_stored_file_bytes(file_path)
     return send_file(
         BytesIO(plaintext),
@@ -426,6 +505,7 @@ def open_file(stored_name):
     if not target_file:
         return render_message_page("Not found", "That file does not exist or you do not have access.")
 
+    # RBAC
     file_role = get_file_role_for_user(target_file, shares, current_user)
     if not can_view(file_role):
         log_event("AUTHORIZATION_FAILURE", 
@@ -450,7 +530,7 @@ def open_file(stored_name):
             stored_name=target_file["stored_name"],
             preview_text=content,
         )
-        return render_template("files/view_text.html", **ctx)
+        return render_template("files/view_text.html", **ctx) # No XSS bc auto escape with template
     except UnicodeDecodeError:
         return render_message_page(
             "Binary or non-text file",

@@ -122,6 +122,7 @@ def admin_users():
     logs = load_security_logs()
     admin_name = current_app.config.get("ADMIN_USERNAME", "admin")
 
+    # Builds a table of users with their various properties
     listed_users = []
     for user in listed:
         sanitized_username = sanitize_input(user["username"])
@@ -150,6 +151,7 @@ def admin_users():
             }
         )
 
+    # Builds a table of sessions with their various properties
     sessions_rows = []
     for token, metadata in sessions.items():
         preview = sanitize_input(token[:12] + "…" if len(token) > 12 else token)
@@ -161,6 +163,8 @@ def admin_users():
                 "token": token, 
             }
         )
+
+    # Logs table
     log_rows = security_log_rows(logs)
     sanitized_logs = []
     for log in log_rows:
@@ -210,6 +214,7 @@ def lock_user(username):
             back_label=label,
         )
 
+    # This flag is essentially what locks the user account
     target_user["locked_by_admin"] = True
     save_users(users)
     log_event("ACCOUNT_LOCKED_BY_ADMIN", actor, request.remote_addr, details=username)
@@ -261,6 +266,7 @@ def unlock_password_lockout(username):
     if not _password_lockout_active(target_user):
         return redirect(url_for("admin.admin_users"))
 
+    # Set necessary flags; these flags go together
     target_user["failed_attempts"] = 0
     target_user["locked_until"] = None
     save_users(users)
@@ -285,6 +291,7 @@ def force_close_session(session_token):
     
     actor = get_current_user()["username"]
     
+    # Session destroyed here; error handling in case it fails
     if not destroy_session_by_token(session_token, actor_username=actor, ip=request.remote_addr):
         href, label = _admin_back()
         return render_message_page(
@@ -316,10 +323,11 @@ def reset_password(username):
         href, label = _admin_back()
         return render_message_page("User not found", "That user does not exist.", back_href=href, back_label=label)
 
+    # Store hashed temporary password
     temp_password = generate_secure_temp_password()
     hashed = bcrypt.hashpw(temp_password.encode("utf-8"), bcrypt.gensalt(12))
     target_user["password"] = hashed.decode("utf-8")
-    target_user["locked_by_admin"] = False
+    # Note that account lockout is not reset here. We do that somewhere else separately.
     target_user["password_reset_requested"] = False
     save_users(users)
     log_event("PASSWORD_RESET_BY_ADMIN", actor, request.remote_addr, details=username)
@@ -352,6 +360,7 @@ def demote_to_guest(username):
         href, label = _admin_back()
         return render_message_page("User not found", "That user does not exist.", back_href=href, back_label=label)
 
+    # RBAC (we could give this role to another role, but for the purposes of this project we are giving all the power to the admin)
     if not _can_admin_adjust_app_role(target_user):
         href, label = _admin_back()
         return render_message_page(
@@ -361,9 +370,11 @@ def demote_to_guest(username):
             back_label=label,
         )
 
+    # Already guest role
     if target_user.get("role", "user") != "user":
         return redirect(url_for("admin.admin_users"))
 
+    # Set role to guest
     target_user["role"] = "guest"
     save_users(users)
     destroy_all_sessions_for_username(username, actor_username=actor, ip=request.remote_addr)
@@ -389,6 +400,7 @@ def promote_to_user(username):
         href, label = _admin_back()
         return render_message_page("User not found", "That user does not exist.", back_href=href, back_label=label)
 
+    # RBAC
     if not _can_admin_adjust_app_role(target_user):
         href, label = _admin_back()
         return render_message_page(
@@ -398,9 +410,11 @@ def promote_to_user(username):
             back_label=label,
         )
 
+    # Already user role
     if target_user.get("role") != "guest":
         return redirect(url_for("admin.admin_users"))
 
+    # Set role to user
     target_user["role"] = "user"
     save_users(users)
     log_event("USER_PROMOTED_TO_USER", actor, request.remote_addr, details=username)

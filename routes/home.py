@@ -9,6 +9,7 @@ from services.validation import sanitize_output
 home_bp = Blueprint("home", __name__)
 
 
+# Generates clickable links for file actions
 def _file_action_links(file_record, file_role, current_user):
     links = []
     if can_view(file_role):
@@ -34,6 +35,7 @@ def _file_action_links(file_record, file_role, current_user):
     return links
 
 
+# Generates an entry card for a public file
 def _public_file_entry(f, shares, current_user):
     file_role = get_file_role_for_user(f, shares, current_user)
     return {
@@ -43,6 +45,7 @@ def _public_file_entry(f, shares, current_user):
     }
 
 
+# Generates an entry card for a file owned by the current user
 def _owned_file_entry(f, shares, current_user):
     file_role = get_file_role_for_user(f, shares, current_user)
     entry = {
@@ -50,6 +53,11 @@ def _owned_file_entry(f, shares, current_user):
         "meta": sanitize_output(f"Your role on this file: {file_role}"),
         "links": _file_action_links(f, file_role, current_user),
     }
+    # Despite the assumption that the user owns the file,
+    # we still do explicit permission checks for the following reasons:
+    #   - maintainability
+    #   - clarity
+    #   - role-based access control
     if can_share(file_role):
         entry["share_form"] = {"action": url_for("files.share_file", file_id=f["id"])}
         entry["public_toggle"] = {
@@ -64,6 +72,7 @@ def _owned_file_entry(f, shares, current_user):
     return entry
 
 
+# Generates an entry card for a file shared with the current user
 def _shared_file_entry(f, shares, current_user):
     file_role = get_file_role_for_user(f, shares, current_user)
     return {
@@ -73,6 +82,7 @@ def _shared_file_entry(f, shares, current_user):
     }
 
 
+# Generates an entry card for a file that admin can view (all files)
 def _admin_file_entry(f, shares, current_user):
     file_role = get_file_role_for_user(f, shares, current_user)
     return {
