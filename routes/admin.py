@@ -135,8 +135,8 @@ def admin_users():
             time.strftime("%Y-%m-%d %H:%M", time.localtime(lu)) if lockout and lu is not None else ""
         )
         password_reset_requested = bool(user.get("password_reset_requested", False))
-        app_role = user.get("role") or "user"
-        is_demoted_guest = app_role == "guest"
+        app_role = user.get("role") or "guest"
+        has_user_role = app_role == "user"
         listed_users.append(
             {
                 "username": sanitized_username,
@@ -147,7 +147,7 @@ def admin_users():
                 "lockout_until_label": until_label,
                 "password_reset_requested": password_reset_requested,
                 "app_role": app_role,
-                "is_demoted_guest": is_demoted_guest,
+                "has_user_role": has_user_role,
             }
         )
 
@@ -371,7 +371,7 @@ def demote_to_guest(username):
         )
 
     # Already guest role
-    if target_user.get("role", "user") != "user":
+    if target_user.get("role", "guest") != "user":
         return redirect(url_for("admin.admin_users"))
 
     # Set role to guest
@@ -411,7 +411,7 @@ def promote_to_user(username):
         )
 
     # Already user role
-    if target_user.get("role") != "guest":
+    if target_user.get("role", "guest") != "guest":
         return redirect(url_for("admin.admin_users"))
 
     # Set role to user

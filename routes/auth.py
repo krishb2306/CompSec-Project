@@ -97,7 +97,7 @@ def register():
         "username": username,
         "email": email,
         "password": hashed.decode("utf-8"),
-        "role": "user",
+        "role": "guest", # default privileges: least privileged
         "failed_attempts": 0,
         "locked_until": None,
         "locked_by_admin": False,

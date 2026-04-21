@@ -38,10 +38,10 @@
           <td><strong>{{ u.username }}</strong></td>
           <td>{{ u.email }}</td>
           <td>
-            {% if u.is_demoted_guest %}
-            <span class="mono" title="Same app privileges as public guest (e.g. no uploads)">Guest (demoted)</span>
-            {% else %}
+            {% if u.has_user_role %}
             <span class="badge badge-ok">User</span>
+            {% else %}
+            <span class="badge badge-error" title="Same app privileges as public guest (view only)">Guest</span>
             {% endif %}
           </td>
           <td>
@@ -80,13 +80,13 @@
                 <button type="submit" class="btn btn-ghost btn-sm">Lock</button>
               </form>
               {% endif %}
-              {% if u.is_demoted_guest %}
-              <form method="post" action="{{ url_for('admin.promote_to_user', username=u.username) }}">
-                <button type="submit" class="btn btn-primary btn-sm">Promote to user</button>
+              {% if u.has_user_role %}
+              <form method="post" action="{{ url_for('admin.demote_to_guest', username=u.username) }}">
+                <button type="submit" class="btn btn-primary btn-sm">Demote to guest</button>
               </form>
               {% else %}
-              <form method="post" action="{{ url_for('admin.demote_to_guest', username=u.username) }}">
-                <button type="submit" class="btn btn-ghost btn-sm">Demote to guest</button>
+              <form method="post" action="{{ url_for('admin.promote_to_user', username=u.username) }}">
+                <button type="submit" class="btn btn-ghost btn-sm">Promote to user</button>
               </form>
               {% endif %}
             </div>
