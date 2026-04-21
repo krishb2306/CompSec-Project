@@ -29,24 +29,20 @@ def create_app():
         "frame-ancestors 'none'"
         )
     
-    # Prevent clickjacking
-        response.headers['X-Frame-Options'] = 'DENY'
-    
-    # Prevent MIME type sniffing
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-    
-    # XSS Protection (legacy browsers)
-        response.headers['X-XSS-Protection'] = '1; mode=block'
-    
-    # Referrer Policy
-        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    
     # HSTS (HTTPS only)
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         response.headers['Permissions-Policy'] = ('geolocation=(), microphone=(), camera=()')
+    # Referrer Policy
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     # Hide server information
         response.headers.pop('Server', None)
         response.headers.pop('server', None)
+    # XSS Protection (legacy browsers)
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+    # Prevent MIME type sniffing
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+    # Prevent clickjacking
+        response.headers['X-Frame-Options'] = 'DENY'
         
         return response
 
